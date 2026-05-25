@@ -1,36 +1,30 @@
 """
-src/models/gan.py
-
-Week 8 of the course implemented:
+GAN implemented:
     - DCGAN Generator (noise → X-ray)
     - DCGAN Discriminator (X-ray → real/fake)
     - GAN training step with alternating updates
     - Non-saturating generator loss
-
-Architecture follows DCGAN guidelines:
+architecture follows DCGAN guidelines:
     - Strided conv instead of pooling
     - BatchNorm in both G and D
     - ReLU in G, LeakyReLU in D
     - No fully connected hidden layers
 """
+import os
+import sys
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 import torch
 import torch.nn as nn
 from configs.config import GAN_LATENT_DIM
 
-
+#maps noise z (B, latent_dim) -> fake x-ray (B,1,224,224)
+#uses transposed convolutions to upsample from small spatial dims
 class Generator(nn.Module):
-    """
-    Maps noise z (B, latent_dim) → fake X-ray (B, 1, 224, 224).
-    Uses transposed convolutions to upsample from small spatial dims.
-    """
-
     def __init__(self, latent_dim=GAN_LATENT_DIM):
         super().__init__()
-        self.net = nn.Sequential(
-            # Input: (B, latent_dim) → reshape to (B, 512, 7, 7)
-            nn.Linear(latent_dim, 512 * 7 * 7),
-        )
+        #input: (B, latent_dim) → reshape to (B, 512, 7, 7)
+        self.net = nn.Sequential(nn.Linear(latent_dim, 512 * 7 * 7))
         self.conv = nn.Sequential(
             # (B, 512, 7, 7) → (B, 256, 14, 14)
             nn.ConvTranspose2d(512, 256, 4, 2, 1, bias=False),
@@ -58,14 +52,9 @@ class Generator(nn.Module):
         x = x.view(x.size(0), 512, 7, 7)
         return self.conv(x)
 
-
+#maps x-ray (B,1,224,224) -> real/fake probability (B,1)
+#uses strided convolutions to downsample and leakyReLU to allow small gradients for -ve activations
 class Discriminator(nn.Module):
-    """
-    Maps X-ray (B, 1, 224, 224) → real/fake probability (B, 1).
-    Uses strided convolutions to downsample.
-    LeakyReLU (not ReLU) to allow small gradients for negative activations.
-    """
-
     def __init__(self):
         super().__init__()
         self.net = nn.Sequential(
@@ -94,12 +83,9 @@ class Discriminator(nn.Module):
     def forward(self, x):
         return self.net(x)
 
-
+#initialize weights from N(0,0.02) as per DCGAN paper
+#applied to conv and batchnorm layers
 def weights_init(m):
-    """
-    Initialize weights from N(0, 0.02) as per DCGAN paper.
-    Applied to conv and batchnorm layers.
-    """
     classname = m.__class__.__name__
     if "Conv" in classname:
         nn.init.normal_(m.weight.data, 0.0, 0.02)
@@ -109,10 +95,6 @@ def weights_init(m):
 
 
 def build_gan(latent_dim=GAN_LATENT_DIM, device="cpu"):
-    """
-    Build and initialize G and D.
-    Returns (generator, discriminator).
-    """
     G = Generator(latent_dim).to(device)
     D = Discriminator().to(device)
     G.apply(weights_init)
@@ -123,21 +105,13 @@ def build_gan(latent_dim=GAN_LATENT_DIM, device="cpu"):
     print(f"[GAN] Generator params: {total_g:,} | Discriminator params: {total_d:,}")
     return G, D
 
-
+#non-saturating generator loss: maximize log(D(G(z))) = minimize -log(D(G(z)))
+#better gradients early in training vs original log(1-D(G(z)))
 def generator_loss(D_fake):
-    """
-    Non-saturating generator loss: maximize log(D(G(z)))
-    = minimize -log(D(G(z)))
-    Better gradients early in training vs original log(1-D(G(z))).
-    """
     return -torch.log(D_fake + 1e-8).mean()
 
-
+#discriminator loss: maximize log(D(x)) + log(1-D(G(z))) = minimize -[log(D(x)) + log(1-D(G(z)))]
 def discriminator_loss(D_real, D_fake):
-    """
-    Discriminator loss: maximize log(D(x)) + log(1 - D(G(z)))
-    = minimize -[log(D(x)) + log(1 - D(G(z)))]
-    """
     real_loss = -torch.log(D_real + 1e-8).mean()
     fake_loss = -torch.log(1 - D_fake + 1e-8).mean()
     return real_loss + fake_loss
@@ -145,9 +119,9 @@ def discriminator_loss(D_real, D_fake):
 
 if __name__ == "__main__":
     G, D = build_gan()
-    z     = torch.randn(4, GAN_LATENT_DIM)
-    fake  = G(z)
+    z = torch.randn(4, GAN_LATENT_DIM)
+    fake = G(z)
     score = D(fake)
-    print(f"Noise shape      : {z.shape}")
-    print(f"Generated shape  : {fake.shape}")
-    print(f"D(G(z)) scores   : {score.squeeze()}")
+    print(f"Noise shape: {z.shape}")
+    print(f"Generated shape: {fake.shape}")
+    print(f"D(G(z)) scores: {score.squeeze()}")
