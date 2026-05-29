@@ -159,10 +159,9 @@ def get_dataloaders(data_dir=None, batch_size=BATCH_SIZE):
     val_ds = ChestXrayDataset(val_p, val_l, transform=get_transforms("val"))
     test_ds = ChestXrayDataset(test_p, test_l, transform=get_transforms("test"))
 
-    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=2, pin_memory=True)
-    val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=2, pin_memory=True)
-    test_loader = DataLoader(test_ds, batch_size=batch_size, shuffle=False, num_workers=2, pin_memory=True)
-
+    train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True,  num_workers=0, pin_memory=True)
+    val_loader = DataLoader(val_ds,   batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=True)
+    test_loader = DataLoader(test_ds,  batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=True)
     return train_loader, val_loader, test_loader
 
 
