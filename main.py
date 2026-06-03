@@ -53,17 +53,8 @@ def run_classifier():
 
 
 def run_vae():
-    print("\n" + "="*60)
-    print("STAGE 3: VAE")
-    print("="*60)
-    import torch
-    from src.models.vae import VAE, vae_loss
-    vae = VAE()
-    x = torch.randn(2, 1, 224, 224)
-    recon, mu, logvar = vae(x)
-    loss, rl, kl = vae_loss(recon, x, mu, logvar)
-    print(f"VAE forward pass OK. Loss={loss.item():.4f}")
-    print("To train: implement src/training/train_vae.py (next step)")
+    from src.training.train_vae import train
+    train()
 
 
 def run_gan():

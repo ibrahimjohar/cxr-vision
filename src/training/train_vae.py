@@ -1,3 +1,16 @@
+#separate transforms are defined for the VAE because the classifier needed ImageNet-normalized RGB (pretrained ResNet expects that).
+#the VAE is trained from scratch on X-rays directly, so it gets raw grayscale [0,1] values - normalizing with ImageNet stats would shift the
+#pixel distribution away from what the VAE's decoder needs to reconstruct.
+
+#the training loop itself is unsupervised - images go in, the model tries to reconstruct them, loss is computed from how well it did plus the KL term. No labels touched anywhere.
+#both loss components are tracked separately per epoch because they tell different stories. 
+#if recon loss is falling but KL is exploding, the model is memorizing instead of generalizing.
+#if KL is near zero, the encoder is collapsing the latent space to a point rather than a distribution.
+
+#save_samples runs every 5 epochs and saves a side-by-side grid of originals vs reconstructions.
+#numbers alone cant tell us if the VAE is actually learning, we need to see whether blurry noise is becoming recognizable structure over time.
+#best model is saved on validation loss, not training loss, same reasoning as the classifier — you want weights that generalize, not overfit.
+
 import os
 import sys
 sys.path.insert(0, os.getcwd())
@@ -66,7 +79,7 @@ def validate(model, loader, device, beta):
     with torch.no_grad():
         for batch in tqdm(loader, desc="  validating", leave=False):
             images = batch["image"].to(device)
-            reconstruction, mu, logvar = model(images)          # encoder → reparameterize → decoder
+            reconstruction, mu, logvar = model(images)          #encoder → reparameterize → decoder
             loss, recon_l, kl_l = vae_loss(reconstruction, images, mu, logvar, beta)
             n = images.size(0)
             total_loss += loss.item() * n
