@@ -36,7 +36,7 @@ PRETRAINED      = True                  # use ImageNet weights
 FREEZE_BACKBONE = False                 # fine-tune entire network
 
 # ─── Training ─────────────────────────────────────────────────────────────────
-BATCH_SIZE      = 32
+BATCH_SIZE      = 16
 NUM_EPOCHS      = 30
 LEARNING_RATE   = 1e-4
 WEIGHT_DECAY    = 1e-4                  # L2 regularization
@@ -57,7 +57,7 @@ GAN_LR_D        = 2e-4
 GAN_BETA1       = 0.5                   # Adam beta1 for GAN (standard DCGAN value)
 
 # ─── Attention U-Net ──────────────────────────────────────────────────────────
-UNET_FEATURES   = [64, 128, 256, 512]
+UNET_FEATURES   = [32, 64, 128, 256]
 UNET_EPOCHS     = 30
 UNET_LR         = 1e-4
 

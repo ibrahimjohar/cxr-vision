@@ -63,16 +63,8 @@ def run_gan():
 
 
 def run_unet():
-    print("\n" + "="*60)
-    print("STAGE 5: Attention U-Net")
-    print("="*60)
-    import torch
-    from src.models.attention_unet import AttentionUNet
-    model = AttentionUNet(in_channels=1, num_classes=1)
-    x = torch.randn(2, 1, 224, 224)
-    out = model(x)
-    print(f"Input: {x.shape} → Output: {out.shape}")
-    print("To train: implement src/training/train_unet.py (next step)")
+    from src.training.train_unet import train
+    train()
 
 
 STAGES = {
