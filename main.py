@@ -58,18 +58,8 @@ def run_vae():
 
 
 def run_gan():
-    print("\n" + "="*60)
-    print("STAGE 4: DCGAN")
-    print("="*60)
-    import torch
-    from src.models.gan import build_gan, generator_loss, discriminator_loss
-    G, D = build_gan()
-    z     = torch.randn(4, 100)
-    fake  = G(z)
-    score = D(fake)
-    print(f"Generator output: {fake.shape}")
-    print(f"Discriminator scores: {score.squeeze().tolist()}")
-    print("To train: implement src/training/train_gan.py (next step)")
+    from src.training.train_gan import train
+    train()
 
 
 def run_unet():
