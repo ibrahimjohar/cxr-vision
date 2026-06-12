@@ -1,14 +1,7 @@
 """
-Standard PyTorch training loop for the CNN classifier.
-Implements:
-    - forward pass
-    - loss computation
-    - optimizer.zero_grad()
-    - loss.backward()
-    - optimizer.step()
-    - learning rate scheduling
-    - validation loop
-    - checkpoint saving
+standard pytorch training loop for the cnn classifier.
+uses progressive unfreezing (frozen backbone first, then fine-tune) and
+early stopping to prevent the fast overfitting seen with full fine-tuning.
 """
 
 import os
@@ -21,18 +14,16 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
 from tqdm import tqdm
 
-from configs.config import (LEARNING_RATE, WEIGHT_DECAY, NUM_EPOCHS,CHECKPOINTS_DIR, LOGS_DIR, DEVICE, SEED)
+from configs.config import (LEARNING_RATE, WEIGHT_DECAY, NUM_EPOCHS, CHECKPOINTS_DIR, LOGS_DIR, DEVICE, SEED, FREEZE_BACKBONE)
 from src.models.classifier import build_classifier
 from src.utils.dataset import get_dataloaders
 
 
-#reproducibility
 def set_seed(seed=SEED):
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
 
-#device setup
 def get_device():
     if DEVICE == "cuda" and torch.cuda.is_available():
         print(f"[Device] Using GPU: {torch.cuda.get_device_name(0)}")
@@ -41,22 +32,18 @@ def get_device():
     return torch.device("cpu")
 
 
-#training epoch
-#returns avg loss & accuracy for this epoch
 def train_one_epoch(model, loader, criterion, optimizer, device):
-    #enables dropout, BatchNorm in training mode
-    model.train()                       
+    model.train()
     total_loss, correct, total = 0.0, 0, 0
 
     for batch in tqdm(loader, desc="  Training", leave=False):
         images = batch["image"].to(device)
         labels = batch["label"].to(device)
 
-        #core training loop
         optimizer.zero_grad()               # 1. clear accumulated gradients
         outputs = model(images)             # 2. forward pass
         loss = criterion(outputs, labels)   # 3. compute loss
-        loss.backward()                     # 4. backprop — compute gradients
+        loss.backward()                     # 4. backprop
         optimizer.step()                    # 5. update weights
 
         total_loss += loss.item() * images.size(0)
@@ -64,15 +51,11 @@ def train_one_epoch(model, loader, criterion, optimizer, device):
         correct += (preds == labels).sum().item()
         total += images.size(0)
 
-    avg_loss = total_loss / total
-    accuracy = correct / total
-    return avg_loss, accuracy
+    return total_loss / total, correct / total
 
 
-#validation epoch
-#evaludate model on validation set
-#no gradient computation — model.eval() disables dropout and uses running BatchNorm stats (not batch stats)
 def validate(model, loader, criterion, device):
+    # eval mode disables dropout and uses running batchnorm stats
     model.eval()
     total_loss, correct, total = 0.0, 0, 0
 
@@ -89,37 +72,50 @@ def validate(model, loader, criterion, device):
             correct += (preds == labels).sum().item()
             total += images.size(0)
 
-    avg_loss = total_loss / total
-    accuracy = correct / total
-    return avg_loss, accuracy
+    return total_loss / total, correct / total
 
 
-#training loop with checkpointing and early stopping awareness
+def set_backbone_trainable(model, trainable):
+    for param in model.backbone.parameters():
+        param.requires_grad = trainable
+
+
 def train(backbone="resnet18", data_dir=None):
     set_seed()
     device = get_device()
     os.makedirs(CHECKPOINTS_DIR, exist_ok=True)
     os.makedirs(LOGS_DIR, exist_ok=True)
 
-    #data
     print("[Data] loading dataset...")
     train_loader, val_loader, _ = get_dataloaders(data_dir)
 
-    #model
     model = build_classifier(backbone).to(device)
 
-    #loss, optimizer, scheduler
+    # start with frozen backbone — only the classification head trains for the first few epochs.
+    # this lets the head adapt to x-ray features before we risk overfitting the whole network.
+    unfreeze_epoch = 5
+    if FREEZE_BACKBONE:
+        set_backbone_trainable(model, False)
+        print(f"[Freeze] backbone frozen — will unfreeze at epoch {unfreeze_epoch}")
+
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
+    optimizer = optim.Adam(filter(lambda p: p.requires_grad, model.parameters()), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
     scheduler = CosineAnnealingLR(optimizer, T_max=NUM_EPOCHS)
 
-    #training
     best_val_acc = 0.0
+    patience = 5
+    epochs_no_improve = 0
     history = {"train_loss": [], "val_loss": [], "train_acc": [], "val_acc": []}
 
     print(f"\n[Training] Starting for {NUM_EPOCHS} epochs...\n")
 
     for epoch in range(1, NUM_EPOCHS + 1):
+        # unfreeze backbone partway through and rebuild optimizer to include its params
+        if FREEZE_BACKBONE and epoch == unfreeze_epoch:
+            set_backbone_trainable(model, True)
+            optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE * 0.1, weight_decay=WEIGHT_DECAY)
+            print(f"  [Unfrozen] backbone now fine-tuning at reduced lr")
+
         train_loss, train_acc = train_one_epoch(model, train_loader, criterion, optimizer, device)
         val_loss, val_acc = validate(model, val_loader, criterion, device)
         scheduler.step()
@@ -133,9 +129,9 @@ def train(backbone="resnet18", data_dir=None):
               f"Train Loss: {train_loss:.4f}  Acc: {train_acc:.4f} | "
               f"Val Loss: {val_loss:.4f}  Acc: {val_acc:.4f}")
 
-        #save best model (early stopping concept - keep best weights)
         if val_acc > best_val_acc:
             best_val_acc = val_acc
+            epochs_no_improve = 0
             ckpt_path = os.path.join(CHECKPOINTS_DIR, f"best_{backbone}.pth")
             torch.save({
                 "epoch": epoch,
@@ -144,6 +140,11 @@ def train(backbone="resnet18", data_dir=None):
                 "val_acc": val_acc,
             }, ckpt_path)
             print(f"  [Saved] best model → {ckpt_path}  (val_acc={val_acc:.4f})")
+        else:
+            epochs_no_improve += 1
+            if epochs_no_improve >= patience:
+                print(f"\n[Early Stop] no improvement for {patience} epochs. stopping.")
+                break
 
     print(f"\n[Done] best validation accuracy: {best_val_acc:.4f}")
     return model, history

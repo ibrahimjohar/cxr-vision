@@ -33,14 +33,14 @@ CANNY_HIGH      = 150
 # ─── CNN Classifier ───────────────────────────────────────────────────────────
 CNN_BACKBONE    = "resnet18"            # resnet18 | resnet50 | densenet121
 PRETRAINED      = True                  # use ImageNet weights
-FREEZE_BACKBONE = False                 # fine-tune entire network
+FREEZE_BACKBONE = True                 # fine-tune entire network
 
 # ─── Training ─────────────────────────────────────────────────────────────────
 BATCH_SIZE      = 16
 NUM_EPOCHS      = 30
 LEARNING_RATE   = 1e-4
 WEIGHT_DECAY    = 1e-4                  # L2 regularization
-DROPOUT_RATE    = 0.5
+DROPOUT_RATE    = 0.3
 SCHEDULER       = "cosine"             # cosine | step | none
 
 # ─── VAE ──────────────────────────────────────────────────────────────────────
