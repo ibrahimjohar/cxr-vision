@@ -9,7 +9,7 @@
 
 #save_samples runs every 5 epochs and saves a side-by-side grid of originals vs reconstructions.
 #numbers alone cant tell us if the VAE is actually learning, we need to see whether blurry noise is becoming recognizable structure over time.
-#best model is saved on validation loss, not training loss, same reasoning as the classifier — you want weights that generalize, not overfit.
+#best model is saved on reconstruction loss (not the beta-weighted total), since recon error is what drives anomaly detection.
 
 import os
 import sys
@@ -24,7 +24,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from configs.config import (VAE_EPOCHS, VAE_LR, VAE_BETA, CHECKPOINTS_DIR, FIGURES_DIR, IMAGE_SIZE, BATCH_SIZE, SEED, DEVICE)
+from configs.config import (VAE_EPOCHS, VAE_LR, VAE_BETA, VAE_KL_ANNEAL, VAE_PATIENCE, CHECKPOINTS_DIR, FIGURES_DIR, IMAGE_SIZE, BATCH_SIZE, SEED, DEVICE)
 from src.models.vae import VAE, vae_loss
 from src.utils.dataset import build_rsna_dataset, ChestXrayDataset
 
@@ -41,13 +41,19 @@ def get_vae_transforms():
 def get_vae_dataloaders(data_dir=None, batch_size=BATCH_SIZE):
     train_p, val_p, _, train_l, val_l, _ = build_rsna_dataset(data_dir)
     transform = get_vae_transforms()
-    
+
+    #vae learns the normal distribution only - train on label 0 (normal) so that pneumonia images later produce 
+    #high reconstruction error as an anomaly signal. val keeps both classes so we can watch the normal/anomaly separation form.
+    train_p = [p for p, l in zip(train_p, train_l) if l == 0]
+    train_l = [l for l in train_l if l == 0]
+
     train_ds = ChestXrayDataset(train_p, train_l, transform=transform)
     val_ds = ChestXrayDataset(val_p, val_l, transform=transform)
-    
+
     train_loader = DataLoader(train_ds, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=True)
     val_loader = DataLoader(val_ds, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=True)
-    
+
+    print(f"[vae] training on {len(train_p)} normal images only")
     return train_loader, val_loader
 
 
@@ -131,36 +137,50 @@ def train(data_dir=None):
     optimizer = optim.Adam(model.parameters(), lr=VAE_LR)
     print(f"[model] vae | params: {sum(p.numel() for p in model.parameters()):,}")
 
-    #track recon and kl separately - if kl explodes the model is memorizing not generalizing
     best_val_loss = float("inf")
+    epochs_no_improve = 0
     history = {"train_loss": [], "val_loss": [], "recon_loss": [], "kl_loss": []}
 
-    print(f"\n[training] {VAE_EPOCHS} epochs | beta={VAE_BETA}\n")
+    print(f"\n[training] {VAE_EPOCHS} epochs | beta annealed to {VAE_BETA} over {VAE_KL_ANNEAL} epochs\n")
 
     for epoch in range(1, VAE_EPOCHS + 1):
-        train_loss, train_recon, train_kl = train_one_epoch(model, train_loader, optimizer, device, VAE_BETA)
-        val_loss, _, _ = validate(model, val_loader, device, VAE_BETA)
+        #kl annealing: ramp beta from 0 up to VAE_BETA over the first few epochs.
+        #starting near 0 lets the decoder learn to reconstruct before the kl term pulls the latent space toward the prior
+        #that prevents posterior collapse.
+        beta = VAE_BETA * min(1.0, epoch / VAE_KL_ANNEAL)
+
+        train_loss, train_recon, train_kl = train_one_epoch(model, train_loader, optimizer, device, beta)
+        val_loss, val_recon, _ = validate(model, val_loader, device, beta)
 
         history["train_loss"].append(train_loss)
         history["val_loss"].append(val_loss)
         history["recon_loss"].append(train_recon)
         history["kl_loss"].append(train_kl)
 
-        print(f"epoch [{epoch:3d}/{VAE_EPOCHS}] train: {train_loss:.4f} (recon={train_recon:.4f} kl={train_kl:.4f}) | val: {val_loss:.4f}")
+        print(f"epoch [{epoch:3d}/{VAE_EPOCHS}] beta={beta:.2f} | train: {train_loss:.4f} (recon={train_recon:.4f} kl={train_kl:.4f}) | val_recon: {val_recon:.4f}")
 
         if epoch % 5 == 0 or epoch == 1:
             save_samples(model, val_loader, device, epoch)
 
-        if val_loss < best_val_loss:
-            best_val_loss = val_loss
+        #checkpoint on reconstruction loss, not beta-weighted total.
+        #during kl annealing the total loss scale shifts each epoch, so it can't be compared across epochs.
+        #recon loss is what drives anomaly detection anyway.
+        if val_recon < best_val_loss:
+            best_val_loss = val_recon
+            epochs_no_improve = 0
             ckpt_path = os.path.join(CHECKPOINTS_DIR, "best_vae.pth")
             torch.save({
                 "epoch": epoch,
                 "model_state": model.state_dict(),
                 "optimizer_state": optimizer.state_dict(),
-                "val_loss": val_loss,
+                "val_recon": val_recon,
             }, ckpt_path)
-            print(f"saved best vae -> {ckpt_path} (val_loss={val_loss:.4f})")
+            print(f"saved best vae -> {ckpt_path} (val_recon={val_recon:.4f})")
+        else:
+            epochs_no_improve += 1
+            if epochs_no_improve >= VAE_PATIENCE:
+                print(f"\n[early stop] no improvement for {VAE_PATIENCE} epochs. stopping.")
+                break
 
     print(f"\ndone. best val loss: {best_val_loss:.4f}")
     return model, history

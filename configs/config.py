@@ -37,7 +37,7 @@ FREEZE_BACKBONE = True                 # fine-tune entire network
 
 # ─── Training ─────────────────────────────────────────────────────────────────
 BATCH_SIZE      = 16
-NUM_EPOCHS      = 30
+NUM_EPOCHS      = 20
 LEARNING_RATE   = 1e-4
 WEIGHT_DECAY    = 1e-4                  # L2 regularization
 DROPOUT_RATE    = 0.3
@@ -47,7 +47,9 @@ SCHEDULER       = "cosine"             # cosine | step | none
 VAE_LATENT_DIM  = 128
 VAE_EPOCHS      = 20
 VAE_LR          = 1e-3
-VAE_BETA        = 1.0                   # weight on KL term (1 = standard VAE)
+VAE_BETA        = 0.1                   # low beta prioritizes reconstruction quality for anomaly detection
+VAE_KL_ANNEAL   = 1                     # ramp beta from 0 to VAE_BETA over this many epochs
+VAE_PATIENCE    = 5                     # early stop if val loss doesn't improve
 
 # ─── GAN ──────────────────────────────────────────────────────────────────────
 GAN_LATENT_DIM  = 100
@@ -58,7 +60,7 @@ GAN_BETA1       = 0.5                   # Adam beta1 for GAN (standard DCGAN val
 
 # ─── Attention U-Net ──────────────────────────────────────────────────────────
 UNET_FEATURES   = [32, 64, 128, 256]
-UNET_EPOCHS     = 30
+UNET_EPOCHS     = 20
 UNET_LR         = 1e-4
 
 # ─── Device ───────────────────────────────────────────────────────────────────
