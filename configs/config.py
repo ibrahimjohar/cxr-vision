@@ -53,7 +53,7 @@ VAE_PATIENCE    = 5                     # early stop if val loss doesn't improve
 
 # ─── GAN ──────────────────────────────────────────────────────────────────────
 GAN_LATENT_DIM  = 100
-GAN_EPOCHS      = 50
+GAN_EPOCHS      = 20
 GAN_LR_G        = 2e-4
 GAN_LR_D        = 2e-4
 GAN_BETA1       = 0.5                   # Adam beta1 for GAN (standard DCGAN value)

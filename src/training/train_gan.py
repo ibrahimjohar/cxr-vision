@@ -120,7 +120,7 @@ def train(data_dir=None):
     opt_g = optim.Adam(G.parameters(), lr=GAN_LR_G, betas=(GAN_BETA1, 0.999))
     opt_d = optim.Adam(D.parameters(), lr=GAN_LR_D, betas=(GAN_BETA1, 0.999))
 
-    best_g_loss = float("inf")
+    
     print(f"\n[training] {GAN_EPOCHS} epochs\n")
 
     for epoch in range(1, GAN_EPOCHS + 1):
@@ -132,19 +132,19 @@ def train(data_dir=None):
         if epoch % 5 == 0 or epoch == 1:
             save_samples(G, device, GAN_LATENT_DIM, epoch)
 
-        if g_loss < best_g_loss:
-            best_g_loss = g_loss
+        # gans have no reliable quality metric to early-stop or pick "best" on, so we
+        # checkpoint periodically and choose the epoch by inspecting the sample grids.
+        if epoch % 5 == 0 or epoch == GAN_EPOCHS:
             torch.save({
                 "epoch": epoch,
                 "G_state": G.state_dict(),
                 "D_state": D.state_dict(),
                 "opt_g_state": opt_g.state_dict(),
                 "opt_d_state": opt_d.state_dict(),
-                "g_loss": g_loss,
-            }, os.path.join(CHECKPOINTS_DIR, "best_gan.pth"))
-            print(f"  saved best gan -> checkpoint (g_loss={g_loss:.4f})")
+            }, os.path.join(CHECKPOINTS_DIR, f"gan_epoch{epoch:03d}.pth"))
+            print(f"  saved checkpoint at epoch {epoch}")
 
-    print(f"\ndone. best g_loss: {best_g_loss:.4f}")
+    print(f"\ndone. checkpoints saved every 5 epochs — pick best by inspecting sample grids")
     return G, D
 
 
