@@ -63,6 +63,15 @@ UNET_FEATURES   = [32, 64, 128, 256]
 UNET_EPOCHS     = 20
 UNET_LR         = 1e-4
 
+# diffusion (ddpm)
+DIFFUSION_IMG_SIZE   = 128     # smaller than 224 to fit 4gb vram; bump to 224 if memory allows
+DIFFUSION_TIMESTEPS  = 1000    # forward noising steps used during training
+DIFFUSION_BASE_CH    = 64      # base channel width of the denoising u-net
+DIFFUSION_EPOCHS     = 10
+DIFFUSION_LR         = 2e-4
+DIFFUSION_BATCH      = 8       # smaller than gan - the diffusion u-net is heavier
+DIFFUSION_DDIM_STEPS = 50      # inference sampling steps (vs 1000 in training)
+
 # ─── Device ───────────────────────────────────────────────────────────────────
 DEVICE          = "cuda"                # will fallback to cpu if cuda unavailable
 

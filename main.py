@@ -1,12 +1,13 @@
 """
-main.py — Project entry point
+main.py - project entry point
 
-Runs each stage of the pipeline in order:
-    Stage 1: Classical preprocessing (OpenCV)
-    Stage 2: CNN classifier training
-    Stage 3: VAE training
-    Stage 4: GAN training
-    Stage 5: Attention U-Net training
+Runs each stage of the pipeline:
+    classical  : Classical preprocessing (OpenCV)
+    classifier : CNN classifier training
+    vae        : VAE training
+    gan        : GAN training
+    unet       : Attention U-Net training
+    diffusion  : DDPM diffusion training
 
 Run individual stages with:
     python main.py --stage classical
@@ -14,6 +15,7 @@ Run individual stages with:
     python main.py --stage vae
     python main.py --stage gan
     python main.py --stage unet
+    python main.py --stage diffusion
     python main.py --stage all
 """
 
@@ -30,10 +32,7 @@ def run_classical():
     print("="*60)
     from src.classical.preprocessing import preprocess_xray
     from configs.config import DATA_RAW
-    import numpy as np
-    from PIL import Image
 
-    # Create a test image if none exist
     dummy = os.path.join(DATA_RAW, "dummy", "dummy_0000.png")
     if os.path.exists(dummy):
         results = preprocess_xray(dummy)
@@ -67,12 +66,18 @@ def run_unet():
     train()
 
 
+def run_diffusion():
+    from src.training.train_diffusion import train
+    train()
+
+
 STAGES = {
-    "classical":  run_classical,
+    "classical": run_classical,
     "classifier": run_classifier,
-    "vae":        run_vae,
-    "gan":        run_gan,
-    "unet":       run_unet,
+    "vae": run_vae,
+    "gan": run_gan,
+    "unet": run_unet,
+    "diffusion": run_diffusion,
 }
 
 
