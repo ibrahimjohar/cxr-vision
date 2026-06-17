@@ -56,10 +56,11 @@ cxr-vision/
 ├── src/evaluation/clip_eval.py              ✅ openai clip + biomedclip comparison
 ├── src/evaluation/eval_generative.py        ✅ fid comparison gan vs diffusion
 ├── scripts/convert_dicom.py                 ✅ dicom→png conversion
+├── scripts/export_results.py                ✅ exports all static json + pngs to dashboard/public/results/
 ├── main.py                                  ✅ entry point, --stage flag
 ├── api/main.py                              ❌ fastapi — not built
 ├── modal_app/serve.py                       ❌ modal serverless — not built
-├── dashboard/                               ❌ next.js — not built
+├── dashboard/                               ✅ next.js initialized, foundation complete (see below)
 ├── .github/workflows/deploy.yml             ❌ ci/cd — not built
 ├── Dockerfile                               ❌ not built
 └── requirements.txt, README.md              ✅
@@ -84,6 +85,10 @@ python src/evaluation/eval_vae.py
 python src/evaluation/eval_unet.py
 python src/evaluation/clip_eval.py
 python src/evaluation/eval_generative.py
+```
+export static results:
+```bash
+python scripts/export_results.py
 ```
 
 ---
@@ -155,177 +160,199 @@ DIFFUSION_DDIM_STEPS = 50
 - architecture: resnet18 backbone (imagenet pretrained) → dropout → linear(512→256) → relu → dropout → linear(256→2)
 - training: frozen backbone first 5 epochs, progressive unfreeze at 0.1× lr, early stopping patience=5
 - **best val accuracy: 85.08%** (epoch 11, early stopped epoch 16)
-- train/val split: 21,347 / 2,668
 - checkpoints: `outputs/checkpoints/best_resnet18.pth`
 
 ### 2. vae anomaly detection
 - architecture: conv encoder (4 conv layers, 224→14, flatten→fc_mu/fc_logvar) + conv decoder
 - params: 20,696,001
 - training: normal-only (16,537 images), fixed beta=0.1, 20 epochs
-- best val recon loss: 0.0094 (epoch 18)
-- kl at convergence: ~0.058 (healthy, nonzero)
+- best val recon loss: 0.0094 (epoch 18), kl at convergence: ~0.058
 - **anomaly detection auc (mse): 0.5105** — chance level
-- **anomaly detection auc (ssim): 0.4829** — also chance
-- separation: 1.037× (normal vs pneumonia recon error)
-- verdict: documented negative result. vanilla vae reconstruction error fails to separate subtle localized cxr pathology. consistent with literature (~0.55–0.62 on easier benchmarks). method limitation, not implementation bug.
+- **anomaly detection auc (ssim): 0.4829**
+- verdict: documented negative result. method limitation, not implementation bug. consistent with literature (~0.55–0.62 vanilla, ~0.78 f-anogan).
 - checkpoint: `outputs/checkpoints/best_vae.pth`
 
 ### 3. dcgan
 - architecture: generator (linear→512×7×7→convtranspose to 224, tanh, batchnorm) + discriminator (strided conv, leakyrelu 0.2, sigmoid)
 - generator params: 5,320,640 | discriminator params: 693,632
-- training: all 21,347 images, 20 epochs, no early stopping
-- training dynamics: d(x) stabilized at 0.69–0.75, d(g(z)) at 0.25–0.31 (healthy equilibrium)
-- **best checkpoint: epoch 10** (gan_epoch010.pth) — sharpest images, best d/g balance
-- epoch 20 shows discriminator gaining edge (d(x)=0.85, d(g(z))=0.15) — past peak
-- **fid vs real: 89.56** (500 samples, inception features, relative comparison only)
-- visual result: recognizable chest x-rays from epoch 5 onward, diverse lung fields, ribcage, spine, diaphragm
+- training: all 21,347 images, 20 epochs
+- d(x) stabilized at 0.69–0.75, d(g(z)) at 0.25–0.31 (healthy equilibrium)
+- **best checkpoint: epoch 10** — sharpest images, best d/g balance
+- **fid vs real: 89.56** (500 samples, relative comparison only)
 - checkpoint: `outputs/checkpoints/gan_epoch010.pth`
 
 ### 4. attention u-net segmentation
 - architecture: 4-level encoder/decoder with attention gates, features=[32,64,128,256]
 - params: 7,851,197
-- supervision: real rsna bounding boxes converted to binary masks, scaled 1024→224
-- training: all images (opacity + normal), combined dice+bce loss, 20 epochs
-- **best val dice (overall): 0.7630** — inflated by 2,068 all-black normal masks
-- **opacity-only dice: 0.4036** (n=601) ← honest localization quality
-- **normal-only dice: 0.8700** (n=2,068) ← false-positive suppression
-- failure mode: model learns lung-region prior (predicts both lung fields) rather than precise opacity boundaries — known weak-supervision limitation with coarse box targets
+- supervision: real rsna bounding boxes → binary masks, scaled 1024→224
+- **best val dice (overall): 0.7630** — inflated by all-black normal masks
+- **opacity-only dice: 0.4036** ← honest localization metric
+- **normal-only dice: 0.8700**
 - checkpoint: `outputs/checkpoints/best_unet.pth` (epoch 16)
 
 ### 5. ddpm diffusion model
-- architecture: time-conditioned resnet-block u-net, no self-attention, 3-level encoder/decoder
-- params: 6,613,761
-- training: all 21,347 images at 128×128, 10 epochs, linear noise schedule (β: 1e-4→0.02)
-- loss (noise mse): 0.0216 (epoch 1) → 0.0118 (epoch 10), converged by epoch 7
-- sampling: ddim, 50 steps (vs 1000 training steps) — enables cpu inference
-- **fid vs real: 64.09** (500 samples, relative comparison)
-- **relative winner over gan: ~25 fid points lower** (64.09 vs 89.56)
-- visual quality: recognizable thoracic anatomy from epoch 1, sharp ribcage/lung fields by epoch 10
+- architecture: time-conditioned resnet-block u-net, 6,613,761 params
+- training: 128×128, 10 epochs, linear noise schedule (β: 1e-4→0.02)
+- sampling: ddim, 50 steps
+- **fid vs real: 64.09** (~25 fid points better than dcgan)
 - checkpoint: `outputs/checkpoints/diffusion_epoch010.pth`
-- note: trained at 128×128 (vs gan 224×224) due to vram constraints
 
-### 6. clip zero-shot evaluation
-#### openai clip (vit-b/32)
-- training data: 400m natural image-text pairs (no medical images)
-- plain prompts: **auc=0.5093, acc=0.2252**
-- clinical prompts: auc=0.4400, acc=0.7744 (high acc = majority class bias, not skill)
-- descriptive prompts: auc=0.3854, acc=0.2349
-- verdict: chance-level across all prompt formulations. domain mismatch.
-
-#### biomedclip (pubmedbert-256 vit-b/16)
-- training data: 15m biomedical figure-caption pairs from pubmed central
-- **auc=0.8386, acc=0.6875**
-- **delta vs openai clip: +0.3293 auc**
-- verdict: near-supervised-cnn performance (85%) with zero task-specific training
-
-#### key finding
-the +0.33 auc gap isolates domain-specific pretraining effect. accuracy/auc trap demonstrated: clinical prompts gave 77% accuracy but 0.44 auc — model defaulted to majority class (normal), not real detection.
+### 6. clip zero-shot
+- openai clip (vit-b/32): **auc=0.5093** — chance, domain mismatch
+- biomedclip (pubmedbert-256 vit-b/16): **auc=0.8386**
+- delta: +0.3293 auc isolates domain pretraining effect
+- accuracy/auc trap: clinical prompts gave 77% acc but 0.44 auc — majority class exploitation
 
 ---
 
-## generative comparison summary
+## generative comparison
 
-| model | fid | sampling | training stability | resolution |
-|-------|-----|----------|--------------------|-----------|
-| dcgan | 89.56 | 1 forward pass | requires d/g balance | 224×224 |
-| ddpm | 64.09 | 50 ddim steps | stable mse loss | 128×128 |
+| model | fid | sampling | resolution |
+|-------|-----|----------|-----------|
+| dcgan | 89.56 | 1 forward pass | 224×224 |
+| ddpm  | 64.09 | 50 ddim steps | 128×128 |
 
 ---
 
-## key resolved issues (windows/environment)
+## static results export — completed ✅
+- `dashboard/public/results/` contains 7 json files + 33 images
+- json files: overview, preprocessing, classifier, vae, unet, clip, generative
+- images: all preprocessing pngs, vae recon epochs, unet mask epochs, gan/diffusion sample grids, fid comparison figure, clip figures
+
+---
+
+## key resolved issues
 
 - **num_workers=0** in all dataloaders — windows multiprocessing crash
-- **sys.path** via `os.getcwd()` — run all scripts from project root via main.py
-- **gitignore encoding** — powershell `echo >` writes utf-16 with bom, git can't read it. always edit .gitignore in vscode as utf-8. fix: `python -c "open('.gitignore','w',encoding='utf-8').write(...)"`
-- **.pth files in git history** — `git rm --cached` + `git filter-branch` + `git gc --prune=now --aggressive` to clean. current .gitignore has `*.pth` but tracked files need manual untracking.
-- **transformers version** — pin to 4.45.0. newer versions import torchaudio which has a broken windows dll on this machine (winError 127).
-- **unet_features=[32,64,128,256]** — reduced from [64,128,256,512] for 4gb vram. do not change.
-- **diffusion batch=8 at 128×128** — tightest memory config. do not increase without testing oom first.
+- **gitignore encoding** — always edit as utf-8 in vscode. fix: `python -c "open('.gitignore','w',encoding='utf-8').write(...)"`
+- **.pth files in git history** — `git rm --cached` + `git filter-branch` + `git gc --prune=now --aggressive`. current .gitignore has `outputs/*` + `!outputs/figures/`
+- **transformers version** — pin to 4.45.0
+- **unet_features=[32,64,128,256]** — do not change for 4gb vram
+- **diffusion batch=8 at 128×128** — tightest memory config
 
 ---
 
-## code style (apply to all code)
-- lowercase comments
-- no `# ────` section dividers
-- no artificial line spacing
-- comments only where genuinely needed
-- code should look human-written, not llm-generated
+## dashboard — foundation complete ✅
+
+### tech stack (dashboard/)
+- next.js 16.2.9 (app router, typescript, tailwind v4)
+- react 19.2.4
+- framer-motion 11.3.0 (installed with --legacy-peer-deps)
+- lenis 1.3.23 (smooth scroll)
+- @phosphor-icons/react 2.1.10
+- recharts 3.8.1
+
+### critical environment fix
+- `next.config.ts` — `allowedDevOrigins: ['192.168.56.1']` — required to unblock js execution
+
+### completed files
+- `app/globals.css` — theme tokens, type scale, interaction animations, orb keyframes, card hover
+- `app/layout.tsx` — server component, metadata, font preloads, ClientProviders wrapper
+- `components/ClientProviders.tsx` — lenis, theme state, view transitions api circular reveal
+- `components/Navbar.tsx` — responsive, active indicator, theme toggle (mounted guard), mobile menu with sweep animation
+- `components/CustomCursor.tsx` — exclusion blend mode, grows on hover, framer-motion spring
+- `components/AnimatedBg.tsx` — three css-animated blurred orbs from corners, seamless loop
+
+### design system
+- **palette dark:** `#080510` base · `#0e0818` secondary · `#1a0a2e` tertiary · `#FFEDDF` text
+- **palette light:** `#FFEDDF` base · `#f5e0cc` secondary · `#11001C` text
+- **accent:** `#3A015C` → `#7B2FBE` gradient
+- **fonts:** Instrument Serif (display) + Hanken Grotesk (ui/data)
+- **theme transition:** view transitions api — circle expands from sun/moon button
+  - desktop origin: `calc(100% - 320px) 32px`
+  - mobile origin: `calc(100% - 56px) 32px`
+
+### interactions
+- custom cursor: exclusion blend, size 32px → 48px on hover
+- buttons: scale(1.05) hover, scale(0.96) active
+- nav links: sliding underline via `::after` pseudo-element
+- cards: `.card-hover` — translateY(-4px) + border glow
+- mobile menu: clip-path sweep down animation
+- page enter: fade + translateY on `.page-wrapper > *`
+- orbs: three blurred divs, corner-to-corner drift, seamless css keyframes
 
 ---
 
-## completed work
-- ✅ all 7 model files built and understood
-- ✅ all 5 training scripts with proper techniques (early stopping, progressive unfreezing, etc.)
-- ✅ all evaluation scripts with honest split metrics
-- ✅ classifier, vae, gan, unet, diffusion trained on real rsna data
-- ✅ clip + biomedclip zero-shot evaluated
-- ✅ fid comparison gan vs diffusion
-- ✅ gitignore encoding fixed (utf-8)
-- ✅ pycache untracked from git
-- ✅ repo public on github
+## pending — dashboard pages to build
+
+### build order
+1. `app/page.tsx` — home
+2. `app/about/page.tsx` — about
+3. `app/overview/page.tsx` — pipeline summary + results table
+4. `app/preprocessing/page.tsx` — classical cv
+5. `app/classifier/page.tsx` — resnet18
+6. `app/vae/page.tsx` — anomaly detection
+7. `app/unet/page.tsx` — segmentation
+8. `app/clip/page.tsx` — zero-shot
+9. `app/generative/page.tsx` — gan vs diffusion + live generate
+10. `app/inference/page.tsx` — live upload
+
+### page design rules (apply to every page)
+- whileInView for all entrance animations (framer-motion, amount: 0.1)
+- every interactive element has an animation
+- data from json files in `dashboard/public/results/`
+- charts built with recharts styled to theme (no default recharts colors)
+- images from `dashboard/public/results/images/`
+- glass cards for metric display
+- instrument serif for headings, hanken grotesk for data
+- fully responsive — desktop first, mobile handled separately
+- no white-bg pngs — all charts built in-dashboard from json data
+
+### data sources per page
+- home/overview: `overview.json`
+- preprocessing: `preprocessing.json` + image files
+- classifier: `classifier.json` (history/confusion_matrix may be null)
+- vae: `vae.json` + recon sample images
+- unet: `unet.json` + mask sample images
+- clip: `clip.json`
+- generative: `generative.json` + epoch sample grids
 
 ---
 
 ## pending — deployment phase
 
-### dashboard plan (next.js on vercel)
-8 pages total:
-
-**static result pages (pre-computed json + png):**
-1. overview — pipeline summary, dataset stats, model results table
-2. classical preprocessing — raw vs clahe vs canny vs sobel side-by-side
-3. cnn classifier — training curve, 85% accuracy, confusion matrix
-4. vae anomaly detection — reconstruction figures, separation histogram, honest negative result
-5. attention u-net — split dice results, prediction figures (input/gt/prediction)
-6. clip zero-shot — openai vs biomedclip bar chart, accuracy/auc trap explanation
-
-**interactive/live pages:**
-7. gan vs diffusion — epoch progression grids for both, fid comparison chart, "generate" button that calls modal endpoint to generate a fresh sample from either model (user picks which)
-8. live inference — upload x-ray → runs through:
-   - resnet18 classifier (normal/pneumonia + confidence bar)
-   - attention u-net (opacity heatmap overlay)
-   - vae (reconstruction side-by-side + recon error score)
-   - openai clip + biomedclip (similarity scores side-by-side)
-
-### deployment stack
+### stack
 - fastapi (`api/main.py`) — inference endpoints
-- modal (`modal_app/serve.py`) — serverless deployment, free tier, cpu-only, hard $0 spend cap
-- vercel — next.js dashboard hosting
-- docker — containerize fastapi app
-- github actions (`.github/workflows/deploy.yml`) — auto-deploy to modal on push to main
+- modal (`modal_app/serve.py`) — serverless, cpu-only, $0 spend cap
+- vercel — dashboard hosting
+- docker — containerize fastapi
+- github actions — auto-deploy on push to main
 
 ### modal endpoints needed
 - `POST /predict` — classifier + unet + vae on uploaded image
-- `POST /clip` — openai clip + biomedclip scores on uploaded image  
-- `POST /generate/gan` — generate one gan sample
-- `POST /generate/diffusion` — generate one ddim sample (50 steps on cpu, ~10-20s)
-
-### results export script needed
-- `scripts/export_results.py` — saves all pre-computed metrics, figures as static json + png into `dashboard/public/results/`
-- this feeds all static dashboard pages without hitting modal at runtime
+- `POST /clip` — openai clip + biomedclip scores
+- `POST /generate/gan` — one gan sample
+- `POST /generate/diffusion` — one ddim sample (50 steps cpu, ~10-20s)
 
 ---
 
-## deployment story (for interviews)
+## deployment story (interviews)
 "trained locally on gtx 1650 → dockerized → ci/cd via github actions → modal serverless (cpu inference) → vercel next.js dashboard with live inference"
 
 ---
 
-## honest result framing (for writeup/interviews)
+## honest result framing (interviews/writeup)
 
 **classifier:** resnet18 with progressive unfreezing achieves 85% val accuracy on rsna binary classification.
 
-**vae:** properly-trained vanilla vae (latent 128, β=0.1, healthy kl ~0.058) achieves chance-level anomaly detection (auc 0.51) on rsna. global reconstruction error fails to capture localized opacities. method limitation, not implementation failure. motivates supervised approaches.
+**vae:** properly-trained vanilla vae achieves chance-level anomaly detection (auc 0.51). global reconstruction error fails on localized opacities. method limitation, not implementation failure. motivates supervised approaches.
 
-**gan:** dcgan produces visually realistic synthetic chest x-rays by epoch 5, stable adversarial equilibrium throughout 20 epochs. best checkpoint at epoch 10 (fid 89.56).
+**gan:** dcgan produces visually realistic chest x-rays by epoch 5, stable equilibrium throughout. best checkpoint epoch 10 (fid 89.56).
 
-**diffusion:** ddpm with ddim sampling (50 steps) outperforms dcgan in fid (64.09 vs 89.56) and visual quality. demonstrates score-based generative modeling as an alternative to adversarial training. trained at 128×128 due to vram constraints.
+**diffusion:** ddpm with ddim (50 steps) outperforms dcgan in fid (64.09 vs 89.56). trained at 128×128 due to vram.
 
-**u-net:** attention u-net achieves 0.40 dice on opacity-containing images (honest localization metric) and 0.87 on normal images. overall 0.76 dice is inflated by all-black normal masks — reported separately. learns lung-region localization under coarse box supervision.
+**u-net:** 0.40 dice on opacity images (honest metric), 0.87 on normal. overall 0.76 inflated by all-black masks — reported separately.
 
-**clip:** general clip (auc 0.51) vs domain-specific biomedclip (auc 0.84) — both zero-shot, no rsna training. +0.33 auc gap isolates domain pretraining effect. demonstrates vision-language model domain transfer to medical imaging.
+**clip:** general clip (auc 0.51) vs biomedclip (auc 0.84) zero-shot. +0.33 auc gap isolates domain pretraining. accuracy/auc trap documented.
+
+---
+
+## code style
+- lowercase comments, no decorative dividers, no artificial spacing
+- comments only where genuinely needed
+- code should look human-written
 
 ---
 
 ## session behavior note
-when context window reaches ~90% full, generate updated handoff for download before continuing. this file should always reflect current project state.
+when context window reaches ~90% full, generate updated handoff before continuing.
