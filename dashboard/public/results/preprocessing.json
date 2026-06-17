@@ -1,0 +1,8 @@
+{
+  "images": {
+    "raw": "images/preprocess_raw.png",
+    "clahe": "images/preprocess_clahe.png",
+    "canny": "images/preprocess_canny.png",
+    "sobel": "images/preprocess_sobel.png"
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "dataset": {
+    "total": 26684,
+    "pneumonia": 6012,
+    "normal": 20672,
+    "train": 21347,
+    "val": 2668,
+    "test": 2669
+  },
+  "models": [
+    {
+      "name": "ResNet18 Classifier",
+      "metric": "Val Accuracy",
+      "value": 85.08,
+      "unit": "%"
+    },
+    {
+      "name": "VAE Anomaly Detection",
+      "metric": "AUC (MSE)",
+      "value": 0.5105,
+      "unit": ""
+    },
+    {
+      "name": "DCGAN",
+      "metric": "FID",
+      "value": 89.56,
+      "unit": ""
+    },
+    {
+      "name": "DDPM Diffusion",
+      "metric": "FID",
+      "value": 64.09,
+      "unit": ""
+    },
+    {
+      "name": "Attention U-Net",
+      "metric": "Dice (opacity-only)",
+      "value": 0.4036,
+      "unit": ""
+    },
+    {
+      "name": "BiomedCLIP Zero-Shot",
+      "metric": "AUC",
+      "value": 0.8386,
+      "unit": ""
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "gan": {
+    "fid": 89.56,
+    "best_epoch": 10,
+    "architecture": "DCGAN",
+    "resolution": "224x224",
+    "epoch_samples": [
+      {
+        "epoch": 1,
+        "path": "images/gan_samples_epoch001.png"
+      },
+      {
+        "epoch": 5,
+        "path": "images/gan_samples_epoch005.png"
+      },
+      {
+        "epoch": 10,
+        "path": "images/gan_samples_epoch010.png"
+      },
+      {
+        "epoch": 15,
+        "path": "images/gan_samples_epoch015.png"
+      },
+      {
+        "epoch": 20,
+        "path": "images/gan_samples_epoch020.png"
+      }
+    ]
+  },
+  "diffusion": {
+    "fid": 64.09,
+    "sampling": "DDIM 50 steps",
+    "architecture": "DDPM U-Net",
+    "resolution": "128x128",
+    "epoch_samples": [
+      {
+        "epoch": 1,
+        "path": "images/diffusion_samples_epoch001.png"
+      },
+      {
+        "epoch": 5,
+        "path": "images/diffusion_samples_epoch005.png"
+      },
+      {
+        "epoch": 10,
+        "path": "images/diffusion_samples_epoch010.png"
+      }
+    ]
+  },
+  "fid_lower_is_better": true,
+  "fid_comparison_figure": "images/generative_fid_comparison.png"
+}

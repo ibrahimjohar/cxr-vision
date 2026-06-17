@@ -1,0 +1,40 @@
+{
+  "openai_clip": {
+    "model": "ViT-B/32",
+    "training_data": "400M natural image-text pairs",
+    "results": [
+      {
+        "prompt_type": "plain",
+        "auc": 0.5093,
+        "accuracy": 0.2252
+      },
+      {
+        "prompt_type": "clinical",
+        "auc": 0.44,
+        "accuracy": 0.7744
+      },
+      {
+        "prompt_type": "descriptive",
+        "auc": 0.3854,
+        "accuracy": 0.2349
+      }
+    ]
+  },
+  "biomedclip": {
+    "model": "PubMedBERT-256 ViT-B/16",
+    "training_data": "15M biomedical figure-caption pairs",
+    "results": [
+      {
+        "prompt_type": "medical",
+        "auc": 0.8386,
+        "accuracy": 0.6875
+      }
+    ]
+  },
+  "delta_auc": 0.3293,
+  "key_finding": "accuracy/auc trap: clinical prompts gave 77% accuracy but 0.44 AUC \u2014 model defaulted to majority class",
+  "figures": {
+    "comparison": "images/clip_comparison.png",
+    "zeroshot_prompts": "images/clip_zeroshot_prompts.png"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "final_val_accuracy": 85.08,
+  "best_epoch": 11,
+  "stopped_epoch": 16,
+  "history": null,
+  "confusion_matrix": null
+}

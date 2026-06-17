@@ -1,0 +1,30 @@
+{
+  "auc_mse": 0.5105,
+  "auc_ssim": 0.4829,
+  "best_val_recon_loss": 0.0094,
+  "kl_at_convergence": 0.058,
+  "separation_ratio": 1.037,
+  "recon_samples": [
+    {
+      "epoch": 1,
+      "path": "images/vae_recon_epoch001.png"
+    },
+    {
+      "epoch": 5,
+      "path": "images/vae_recon_epoch005.png"
+    },
+    {
+      "epoch": 10,
+      "path": "images/vae_recon_epoch010.png"
+    },
+    {
+      "epoch": 15,
+      "path": "images/vae_recon_epoch015.png"
+    },
+    {
+      "epoch": 20,
+      "path": "images/vae_recon_epoch020.png"
+    }
+  ],
+  "anomaly_separation_figure": "images/vae_anomaly_separation.png"
+}
