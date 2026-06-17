@@ -1,8 +1,8 @@
 data/raw/
-outputs/
+outputs/*
+!outputs/figures/
 __pycache__/
 *.pyc
 *.pth
 .env
 venv/
-scripts/
