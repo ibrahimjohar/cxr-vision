@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { motion, AnimatePresence } from 'framer-motion'
 import { Sun, Moon, List, X } from '@phosphor-icons/react'
 
 const links = [
@@ -28,8 +27,10 @@ export default function Navbar({ theme, onToggleTheme }: NavbarProps) {
   const pathname = usePathname()
   const [scrolled, setScrolled] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    setTimeout(() => setMounted(true), 0)
     const onScroll = () => setScrolled(window.scrollY > 20)
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
@@ -57,7 +58,6 @@ export default function Navbar({ theme, onToggleTheme }: NavbarProps) {
           alignItems: 'center',
           justifyContent: 'space-between',
         }}>
-          {/* logo */}
           <Link href="/" style={{ textDecoration: 'none' }} onClick={() => setMenuOpen(false)}>
             <span style={{
               fontFamily: 'Instrument Serif, serif',
@@ -65,17 +65,17 @@ export default function Navbar({ theme, onToggleTheme }: NavbarProps) {
               fontWeight: 700,
               color: 'var(--text-primary)',
               letterSpacing: '0.04em',
+              transition: 'color 0.4s ease',
             }}>
               cxr<span style={{ color: 'var(--accent-light)' }}>.</span>vision
             </span>
           </Link>
 
-          {/* desktop links — inline flex with explicit gap */}
-          <div style={{
+          <div className="nav-desktop" style={{
             display: 'flex',
             alignItems: 'center',
             gap: '2.5rem',
-          }} className="nav-desktop">
+          }}>
             {links.slice(2).map(link => (
               <Link
                 key={link.href}
@@ -83,7 +83,7 @@ export default function Navbar({ theme, onToggleTheme }: NavbarProps) {
                 style={{
                   fontFamily: 'Hanken Grotesk, sans-serif',
                   fontSize: '0.875rem',
-                  fontWeight: 400,
+                  fontWeight: pathname === link.href ? 600 : 400,
                   letterSpacing: '0.01em',
                   textDecoration: 'none',
                   color: pathname === link.href ? 'var(--text-primary)' : 'var(--text-secondary)',
@@ -95,45 +95,43 @@ export default function Navbar({ theme, onToggleTheme }: NavbarProps) {
               >
                 {link.label}
                 {pathname === link.href && (
-                  <motion.span
-                    layoutId="nav-indicator"
-                    style={{
-                      position: 'absolute',
-                      bottom: '-4px',
-                      left: 0, right: 0,
-                      height: '1px',
-                      background: 'var(--accent-light)',
-                    }}
-                  />
+                  <span style={{
+                    position: 'absolute',
+                    bottom: '-4px',
+                    left: 0, right: 0,
+                    height: '1px',
+                    background: 'var(--accent-light)',
+                    display: 'block',
+                  }} />
                 )}
               </Link>
             ))}
           </div>
 
-          {/* controls */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
             <button
               onClick={onToggleTheme}
               style={{
                 background: 'none', border: 'none',
-                padding: '4px', cursor: 'pointer',
+                padding: '6px', cursor: 'pointer',
                 color: 'var(--text-secondary)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                transition: 'color 0.2s',
+                transition: 'color 0.2s, transform 0.4s ease',
+                borderRadius: '50%',
               }}
               aria-label="Toggle theme"
             >
-              {theme === 'dark'
+              {mounted && (theme === 'dark'
                 ? <Sun size={20} weight="light" />
                 : <Moon size={20} weight="light" />
-              }
+              )}
             </button>
 
             <button
               onClick={() => setMenuOpen(o => !o)}
               style={{
                 background: 'none', border: 'none',
-                padding: '4px', cursor: 'pointer',
+                padding: '6px', cursor: 'pointer',
                 color: 'var(--text-secondary)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 transition: 'color 0.2s',
@@ -141,74 +139,56 @@ export default function Navbar({ theme, onToggleTheme }: NavbarProps) {
               className="nav-menu-btn"
               aria-label="Toggle menu"
             >
-              {menuOpen
-                ? <X size={20} weight="light" />
-                : <List size={20} weight="light" />
-              }
+              {menuOpen ? <X size={20} weight="light" /> : <List size={20} weight="light" />}
             </button>
           </div>
         </div>
       </nav>
 
-      {/* mobile menu */}
-      <AnimatePresence>
-        {menuOpen && (
-          <motion.div
-            initial={{ opacity: 0, y: -8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.2 }}
-            style={{
-              position: 'fixed',
-              top: 'var(--nav-height)',
-              left: 0, right: 0,
-              zIndex: 49,
-              background: 'var(--bg-secondary)',
-              borderBottom: '1px solid var(--border)',
-              padding: '1.5rem clamp(1.5rem, 5vw, 4rem)',
-            }}
-          >
-            {links.map(link => (
-              <Link
-                key={link.href}
-                href={link.href}
-                onClick={() => setMenuOpen(false)}
-                style={{
-                  display: 'block',
-                  padding: '0.75rem 0',
-                  fontFamily: 'Hanken Grotesk, sans-serif',
-                  fontSize: '0.875rem',
-                  fontWeight: 400,
-                  letterSpacing: '0.01em',
-                  textDecoration: 'none',
-                  color: pathname === link.href ? 'var(--text-primary)' : 'var(--text-secondary)',
-                  borderBottom: '1px solid var(--border)',
-                }}
-              >
-                {link.label}
-              </Link>
-            ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {menuOpen && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 'var(--nav-height)',
+            left: 0, right: 0,
+            zIndex: 49,
+            background: 'var(--bg-secondary)',
+            borderBottom: '1px solid var(--border)',
+            padding: '1.5rem clamp(1.5rem, 5vw, 4rem)',
+            animation: 'menuSlideDown 0.3s cubic-bezier(0.87, 0, 0.13, 1) forwards',
+          }}
+        >
+          {links.map(link => (
+            <Link
+              key={link.href}
+              href={link.href}
+              onClick={() => setMenuOpen(false)}
+              style={{
+                display: 'block',
+                padding: '0.75rem 0',
+                fontFamily: 'Hanken Grotesk, sans-serif',
+                fontSize: '0.875rem',
+                fontWeight: 400,
+                letterSpacing: '0.01em',
+                textDecoration: 'none',
+                color: pathname === link.href ? 'var(--text-primary)' : 'var(--text-secondary)',
+                borderBottom: '1px solid var(--border)',
+                transition: 'color 0.2s ease',
+              }}
+            >
+              {link.label}
+            </Link>
+          ))}
+        </div>
+      )}
 
       <style jsx>{`
-        .nav-desktop {
-          display: flex !important;
-        }
-        .nav-menu-btn {
-          display: none !important;
-        }
-        .nav-link:hover {
-          color: var(--text-primary) !important;
-        }
+        .nav-desktop { display: flex !important; }
+        .nav-menu-btn { display: none !important; }
+        .nav-link:hover { color: var(--text-primary) !important; }
         @media (max-width: 960px) {
-          .nav-desktop {
-            display: none !important;
-          }
-          .nav-menu-btn {
-            display: flex !important;
-          }
+          .nav-desktop { display: none !important; }
+          .nav-menu-btn { display: flex !important; }
         }
       `}</style>
     </>
