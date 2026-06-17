@@ -282,3 +282,26 @@ button:active { transform: scale(0.96); }
 .page-wrapper > * {
   animation: pageEnter 0.4s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
 }
+
+/* stronger grain on body */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.055'/%3E%3C/svg%3E");
+  opacity: 1;
+}
+
+/* fix stats section alignment */
+.stats-section {
+  padding: clamp(3rem, 6vw, 5rem) clamp(1.5rem, 5vw, 4rem);
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* increase orb blur to remove blocky artifacts */
+.orb-1 { filter: blur(180px) !important; }
+.orb-2 { filter: blur(160px) !important; }
+.orb-3 { filter: blur(150px) !important; }
