@@ -47,6 +47,7 @@ export default function CustomCursor() {
 
   return (
     <>
+      {/* outer ring — mix-blend-mode exclusion gives inverted color effect */}
       <motion.div
         style={{
           position: 'fixed',
@@ -55,27 +56,13 @@ export default function CustomCursor() {
           translateX: '-50%', translateY: '-50%',
           zIndex: 9999,
           pointerEvents: 'none',
-          width: hovered ? 40 : 24,
-          height: hovered ? 40 : 24,
-          border: '1px solid var(--accent-light)',
-          borderRadius: '50%',
-          opacity: visible ? (hovered ? 0.6 : 0.3) : 0,
-          transition: 'width 0.2s ease, height 0.2s ease, opacity 0.2s ease',
-        }}
-      />
-      <motion.div
-        style={{
-          position: 'fixed',
-          top: 0, left: 0,
-          x: cursorX, y: cursorY,
-          translateX: '-50%', translateY: '-50%',
-          zIndex: 9999,
-          pointerEvents: 'none',
-          width: 4, height: 4,
-          background: 'var(--accent-light)',
+          width: hovered ? 48 : 32,
+          height: hovered ? 48 : 32,
+          background: '#FFEDDF',
           borderRadius: '50%',
           opacity: visible ? 1 : 0,
-          transition: 'opacity 0.2s ease',
+          mixBlendMode: 'exclusion',
+          transition: 'width 0.25s cubic-bezier(0.87, 0, 0.13, 1), height 0.25s cubic-bezier(0.87, 0, 0.13, 1), opacity 0.2s ease',
         }}
       />
     </>
