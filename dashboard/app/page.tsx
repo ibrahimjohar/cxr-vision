@@ -1,27 +1,605 @@
 'use client'
 
-import { useState } from 'react'
+import Link from 'next/link'
+import { motion, useInView, useMotionValue, useSpring, animate, type HTMLMotionProps } from 'framer-motion'
+import { ArrowRight, ArrowUpRight, Stethoscope, Sparkle, ArrowDown } from '@phosphor-icons/react'
+import { useEffect, useRef, useState } from 'react'
+
+const pipeline = [
+  { step: '01', label: 'Classical CV', desc: 'CLAHE · Canny · Sobel', href: '/preprocessing' },
+  { step: '02', label: 'Classification', desc: 'ResNet18 · 85.08% acc', href: '/classifier' },
+  { step: '03', label: 'Anomaly Detection', desc: 'VAE · AUC 0.51', href: '/vae' },
+  { step: '04', label: 'Segmentation', desc: 'Attention U-Net · Dice 0.40', href: '/unet' },
+  { step: '05', label: 'Generative', desc: 'DCGAN · DDPM · FID 64.1', href: '/generative' },
+  { step: '06', label: 'Zero-Shot CLIP', desc: 'CLIP · BiomedCLIP · AUC 0.84', href: '/clip' },
+]
+
+const stats = [
+  { value: 26684, display: '26,684', label: 'X-rays', sub: 'RSNA dataset', decimals: 0 },
+  { value: 85, display: '85%', label: 'Accuracy', sub: 'ResNet18 classifier', suffix: '%', decimals: 0 },
+  { value: 0.84, display: '0.84', label: 'AUC', sub: 'BiomedCLIP zero-shot', decimals: 2 },
+  { value: 64.1, display: '64.1', label: 'FID', sub: 'Diffusion model', decimals: 1 },
+]
+
+function CountUp({ value, decimals, suffix = '' }: { value: number; decimals: number; suffix?: string }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const inView = useInView(ref as React.RefObject<Element>, { once: true, margin: '-50px' })
+  const [displayed, setDisplayed] = useState('0')
+
+  useEffect(() => {
+    if (!inView) return
+    const controls = animate(0, value, {
+      duration: 1.6,
+      ease: [0.25, 0.1, 0.25, 1] as [number, number, number, number],
+      onUpdate(v) {
+        setDisplayed(
+          decimals === 0
+            ? Math.floor(v).toLocaleString()
+            : v.toFixed(decimals)
+        )
+      },
+    })
+    return controls.stop
+  }, [inView, value, decimals])
+
+  return <span ref={ref}>{displayed}{suffix}</span>
+}
+
+const fadeUp = (delay = 0) => ({
+  initial: { opacity: 0, y: 18 },
+  whileInView: { opacity: 1, y: 0 },
+  viewport: { once: true, amount: 0.1 } as const,
+  transition: { duration: 0.55, delay },
+})
+
+const heroCardMotionProps = {
+  ...fadeUp(0.25),
+}
 
 export default function HomePage() {
-  const [count, setCount] = useState(0)
-
   return (
-    <div style={{ padding: '4rem', color: 'white' }}>
-      <h1 style={{ fontSize: '3rem', marginBottom: '2rem' }}>hello world</h1>
-      <button
-        onClick={() => setCount(c => c + 1)}
-        style={{
-          padding: '1rem 2rem',
-          background: 'purple',
-          color: 'white',
-          border: 'none',
+    <div style={{ position: 'relative' }}>
+
+      {/* hero */}
+      <section style={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        padding: 'clamp(5rem, 10vw, 8rem) clamp(1.5rem, 5vw, 4rem) clamp(3rem, 6vw, 5rem)',
+        position: 'relative',
+        overflow: 'hidden',
+      }}>
+
+        {/* full-bleed dot grid */}
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundImage: 'radial-gradient(circle, var(--text-muted) 1px, transparent 1px)',
+          backgroundSize: '28px 28px',
+          opacity: 0.35,
+          pointerEvents: 'none',
+        }} />
+
+        {/* grain overlay */}
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.06'/%3E%3C/svg%3E")`,
+          pointerEvents: 'none',
+          opacity: 0.5,
+        }} />
+
+        <div style={{
+          maxWidth: '1400px',
+          margin: '0 auto',
+          width: '100%',
+          display: 'grid',
+          gridTemplateColumns: '1fr auto',
+          gap: '4rem',
+          alignItems: 'center',
+          position: 'relative',
+        }}>
+
+          {/* left: text content */}
+          <div>
+            {/* tag */}
+            <motion.div {...fadeUp(0)}>
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+                padding: '0.4rem 0.9rem',
+                border: '1px solid var(--border)',
+                borderRadius: '2px',
+                marginBottom: '2rem',
+              }}>
+                <Stethoscope size={12} style={{ color: 'var(--accent-light)' }} />
+                <span className="text-subheading" style={{ color: 'var(--text-muted)' }}>
+                  medical imaging · deep learning
+                </span>
+              </div>
+            </motion.div>
+
+            {/* headline */}
+            <motion.div {...fadeUp(0.06)}>
+              <h1 style={{ marginBottom: '2rem', lineHeight: 0.92 }}>
+                <span className="text-display" style={{ color: 'var(--text-primary)', display: 'block' }}>
+                  Chest X-Ray
+                </span>
+                <span style={{
+                  fontFamily: 'Instrument Serif, serif',
+                  fontStyle: 'italic',
+                  fontSize: 'clamp(3.5rem, 9vw, 8rem)',
+                  fontWeight: 400,
+                  background: 'var(--gradient-accent)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                  display: 'block',
+                  overflow: 'visible',
+                  paddingBottom: '0.1em',
+                }}>
+                  Pathology
+                </span>
+                <span className="text-display" style={{ color: 'var(--text-primary)', display: 'block' }}>
+                  Detection.
+                </span>
+              </h1>
+            </motion.div>
+
+            {/* description */}
+            <motion.div {...fadeUp(0.14)}>
+              <p className="text-body" style={{ maxWidth: '500px', marginBottom: '2.5rem', fontSize: '1.05rem', lineHeight: 1.8 }}>
+                Six-stage machine learning pipeline that identifies pneumonia in chest X-rays — combining
+                classical image processing, convolutional neural networks, generative models, segmentation,
+                and vision-language models. Trained on 26,684 radiographs from the RSNA dataset.
+              </p>
+            </motion.div>
+
+            {/* ctas */}
+            <motion.div {...fadeUp(0.2)} style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+              <Link href="/overview" style={{ textDecoration: 'none' }}>
+                <button style={{
+                  display: 'flex', alignItems: 'center', gap: '0.5rem',
+                  padding: '0.8rem 1.8rem',
+                  background: 'linear-gradient(135deg, #3A015C, #7B2FBE)',
+                  border: 'none', borderRadius: '3px',
+                  color: '#fff',
+                  fontFamily: 'Hanken Grotesk, sans-serif',
+                  fontSize: '0.875rem', fontWeight: 600,
+                  letterSpacing: '0.05em',
+                  boxShadow: '0 4px 24px rgba(123, 47, 190, 0.35)',
+                }}>
+                  view results <ArrowRight size={14} weight="bold" />
+                </button>
+              </Link>
+              <Link href="/inference" style={{ textDecoration: 'none' }}>
+                <button style={{
+                  display: 'flex', alignItems: 'center', gap: '0.5rem',
+                  padding: '0.8rem 1.8rem',
+                  background: 'rgba(255, 237, 223, 0.04)',
+                  backdropFilter: 'blur(12px)',
+                  WebkitBackdropFilter: 'blur(12px)',
+                  border: '1px solid rgba(255, 237, 223, 0.12)',
+                  borderRadius: '3px',
+                  color: 'var(--text-secondary)',
+                  fontFamily: 'Hanken Grotesk, sans-serif',
+                  fontSize: '0.875rem', fontWeight: 600,
+                  letterSpacing: '0.05em',
+                }}>
+                  live inference <ArrowUpRight size={14} weight="bold" />
+                </button>
+              </Link>
+            </motion.div>
+          </div>
+          
+          {/* right: X-ray glass cards */}
+          <motion.div {...heroCardMotionProps}
+            {...(fadeUp(0.25) as object)}
+            {...({ className: 'hero-xray-stack' } as object)}
+            style={{ position: 'relative', width: '320px', height: '420px', flexShrink: 0 }}
+          >
+            {/* back card */}
+            <div style={{
+              position: 'absolute',
+              top: '24px', left: '24px',
+              width: '260px', height: '320px',
+              background: 'rgba(50, 0, 79, 0.25)',
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
+              border: '1px solid rgba(123, 47, 190, 0.2)',
+              borderRadius: '8px',
+              transform: 'rotate(6deg)',
+            }} />
+
+            {/* mid card */}
+            <div style={{
+              position: 'absolute',
+              top: '12px', left: '12px',
+              width: '260px', height: '320px',
+              background: 'rgba(50, 0, 79, 0.35)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              border: '1px solid rgba(123, 47, 190, 0.3)',
+              borderRadius: '8px',
+              transform: 'rotate(3deg)',
+            }} />
+
+            {/* front card — X-ray SVG */}
+            <div style={{
+              position: 'absolute',
+              top: 0, left: 0,
+              width: '260px', height: '320px',
+              background: 'rgba(14, 8, 24, 0.7)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              border: '1px solid rgba(123, 47, 190, 0.4)',
+              borderRadius: '8px',
+              overflow: 'hidden',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '1.5rem',
+            }}>
+              {/* X-ray chest SVG illustration */}
+              <svg viewBox="0 0 200 220" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: '100%', opacity: 0.7 }}>
+                {/* outer body outline */}
+                <ellipse cx="100" cy="110" rx="78" ry="95" stroke="rgba(123,47,190,0.4)" strokeWidth="1" fill="none"/>
+                {/* ribcage left */}
+                <path d="M60 75 Q45 85 48 100" stroke="rgba(255,237,223,0.5)" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
+                <path d="M60 90 Q43 100 46 115" stroke="rgba(255,237,223,0.45)" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
+                <path d="M62 105 Q44 115 47 130" stroke="rgba(255,237,223,0.4)" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
+                <path d="M65 120 Q46 130 50 145" stroke="rgba(255,237,223,0.35)" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
+                <path d="M70 135 Q52 143 55 158" stroke="rgba(255,237,223,0.3)" strokeWidth="1.1" fill="none" strokeLinecap="round"/>
+                {/* ribcage right */}
+                <path d="M140 75 Q155 85 152 100" stroke="rgba(255,237,223,0.5)" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
+                <path d="M140 90 Q157 100 154 115" stroke="rgba(255,237,223,0.45)" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
+                <path d="M138 105 Q156 115 153 130" stroke="rgba(255,237,223,0.4)" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
+                <path d="M135 120 Q154 130 150 145" stroke="rgba(255,237,223,0.35)" strokeWidth="1.2" fill="none" strokeLinecap="round"/>
+                <path d="M130 135 Q148 143 145 158" stroke="rgba(255,237,223,0.3)" strokeWidth="1.1" fill="none" strokeLinecap="round"/>
+                {/* spine */}
+                <line x1="100" y1="55" x2="100" y2="185" stroke="rgba(255,237,223,0.35)" strokeWidth="2" strokeDasharray="3 3"/>
+                {/* vertebrae */}
+                {[65,80,95,110,125,140,155,170].map((y, i) => (
+                  <rect key={i} x="95" y={y} width="10" height="7" rx="1" fill="none" stroke="rgba(255,237,223,0.3)" strokeWidth="0.8"/>
+                ))}
+                {/* left lung */}
+                <path d="M72 70 Q55 80 53 120 Q55 155 75 165 Q88 168 95 160 L95 70 Z" fill="rgba(123,47,190,0.12)" stroke="rgba(123,47,190,0.4)" strokeWidth="1"/>
+                {/* right lung */}
+                <path d="M128 70 Q145 80 147 120 Q145 155 125 165 Q112 168 105 160 L105 70 Z" fill="rgba(123,47,190,0.12)" stroke="rgba(123,47,190,0.4)" strokeWidth="1"/>
+                {/* heart */}
+                <ellipse cx="90" cy="115" rx="18" ry="22" fill="rgba(58,1,92,0.4)" stroke="rgba(123,47,190,0.5)" strokeWidth="1"/>
+                {/* clavicles */}
+                <path d="M100 58 Q80 62 62 72" stroke="rgba(255,237,223,0.5)" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+                <path d="M100 58 Q120 62 138 72" stroke="rgba(255,237,223,0.5)" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+                {/* scan label */}
+                <text x="10" y="214" fill="rgba(123,47,190,0.6)" fontSize="7" fontFamily="monospace">RSNA · PA VIEW · 224px</text>
+              </svg>
+
+              {/* card label */}
+              <div style={{
+                position: 'absolute', bottom: '1rem', left: '1rem', right: '1rem',
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              }}>
+                <span style={{ fontFamily: 'Hanken Grotesk', fontSize: '0.65rem', color: 'var(--accent-light)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                  chest PA
+                </span>
+                <Sparkle size={12} style={{ color: 'var(--accent-light)', opacity: 0.6 }} />
+              </div>
+            </div>
+
+            {/* floating metric badge */}
+            <div style={{
+              position: 'absolute',
+              bottom: '20px', right: '0px',
+              padding: '0.6rem 0.9rem',
+              background: 'rgba(14, 8, 24, 0.85)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              border: '1px solid rgba(123, 47, 190, 0.4)',
+              borderRadius: '6px',
+            }}>
+              <p style={{ fontFamily: 'Hanken Grotesk', fontSize: '0.65rem', color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '0.2rem' }}>classifier</p>
+              <p style={{ fontFamily: 'Hanken Grotesk', fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)' }}>85.08%</p>
+            </div>
+          </motion.div>
+        </div>
+
+        {/* scroll indicator */}
+        <motion.div
+          {...fadeUp(0.5)}
+          style={{
+            position: 'absolute',
+            bottom: '2.5rem',
+            left: 'clamp(1.5rem, 5vw, 4rem)',
+            display: 'flex', alignItems: 'center', gap: '0.75rem',
+          }}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+            <div style={{ width: '1px', height: '32px', background: 'linear-gradient(to bottom, transparent, var(--accent-light))' }} />
+            <ArrowDown size={12} style={{ color: 'var(--accent-light)', opacity: 0.6 }} />
+          </div>
+          <p className="text-subheading">scroll</p>
+        </motion.div>
+      </section>
+
+      <div className="divider" />
+
+      {/* stats strip */}
+      <section style={{ padding: 'clamp(3rem, 6vw, 5rem) clamp(1.5rem, 5vw, 4rem)' }}>
+        <div style={{
+          maxWidth: '1400px', margin: '0 auto',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(4, 1fr)',
+        }}>
+          {stats.map((stat, i) => (
+            <motion.div
+              key={stat.label}
+              {...fadeUp(i * 0.07)}
+            >
+              <div
+                className="accent-line"
+                style={{
+                  padding: '2rem 2rem 2rem 2.5rem',
+                  borderRight: i < stats.length - 1 ? '1px solid var(--border)' : 'none',
+                  height: '100%',
+                }}
+              >
+                <p style={{
+                  fontFamily: 'Hanken Grotesk, sans-serif',
+                  fontSize: 'clamp(2.2rem, 4vw, 3.5rem)',
+                  fontWeight: 800,
+                  letterSpacing: '-0.04em',
+                  lineHeight: 1,
+                  marginBottom: '0.3rem',
+                  background: 'var(--gradient-accent)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                }}>
+                  <CountUp value={stat.value} decimals={stat.decimals} suffix={stat.suffix} />
+                </p>
+                <p style={{
+                  fontFamily: 'Hanken Grotesk, sans-serif',
+                  fontSize: '1rem', fontWeight: 600,
+                  color: 'var(--text-primary)', marginBottom: '0.2rem',
+                }}>
+                  {stat.label}
+                </p>
+                <p className="text-subheading">{stat.sub}</p>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      <div className="divider" />
+
+      {/* pipeline grid */}
+      <section className="section">
+        <motion.div {...fadeUp(0)}>
+          <p className="text-subheading" style={{ marginBottom: '0.75rem' }}>Pipeline</p>
+        </motion.div>
+        <motion.div {...fadeUp(0.08)}>
+          <h2 style={{ marginBottom: '3rem', maxWidth: '560px' }}>
+            <span className="text-heading" style={{ color: 'var(--text-primary)' }}>Six stages, </span>
+            <span className="text-heading font-display" style={{ fontStyle: 'italic', color: 'var(--text-primary)' }}>
+              one cohesive system.
+            </span>
+          </h2>
+        </motion.div>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
+          border: '1px solid var(--border)',
           borderRadius: '8px',
-          fontSize: '1rem',
-          cursor: 'pointer',
-        }}
-      >
-        clicked {count} times
-      </button>
+          overflow: 'hidden',
+        }}>
+          {pipeline.map((item, i) => (
+            <motion.div key={item.step} {...fadeUp(i * 0.05)}>
+              <Link href={item.href} style={{ textDecoration: 'none' }}>
+                <div
+                  style={{
+                    padding: '2rem',
+                    borderRight: (i + 1) % 3 !== 0 ? '1px solid var(--border)' : 'none',
+                    borderBottom: i < 3 ? '1px solid var(--border)' : 'none',
+                    height: '100%',
+                    display: 'flex', flexDirection: 'column',
+                    background: 'rgba(50, 0, 79, 0.08)',
+                    backdropFilter: 'blur(12px)',
+                    WebkitBackdropFilter: 'blur(12px)',
+                    transition: 'background 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease',
+                    boxShadow: 'none',
+                    cursor: 'pointer',
+                  }}
+                  className="pipeline-card"
+                >
+                  <p style={{
+                    fontFamily: 'Instrument Serif, serif',
+                    fontSize: '3rem', fontWeight: 300,
+                    color: 'var(--accent-light)', opacity: 0.25,
+                    lineHeight: 1, marginBottom: '1.2rem',
+                  }}>
+                    {item.step}
+                  </p>
+                  <p style={{
+                    fontFamily: 'Hanken Grotesk, sans-serif',
+                    fontSize: '1.05rem', fontWeight: 600,
+                    color: 'var(--text-primary)', marginBottom: '0.4rem',
+                  }}>
+                    {item.label}
+                  </p>
+                  <p className="text-subheading" style={{ marginBottom: 'auto' }}>{item.desc}</p>
+                  <div style={{
+                    marginTop: '1.5rem',
+                    display: 'flex', alignItems: 'center', gap: '0.4rem',
+                    color: 'var(--accent-light)',
+                    fontFamily: 'Hanken Grotesk, sans-serif',
+                    fontSize: '0.75rem', fontWeight: 600,
+                    letterSpacing: '0.08em',
+                    opacity: 0.7,
+                    transition: 'opacity 0.2s',
+                  }}
+                  className="pipeline-arrow"
+                  >
+                    explore <ArrowRight size={12} weight="bold" />
+                  </div>
+                </div>
+              </Link>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      <div className="divider" />
+
+      {/* dataset section */}
+      <section className="section">
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+          gap: '5rem',
+          alignItems: 'center',
+        }}>
+          <div>
+            <motion.div {...fadeUp(0)}>
+              <p className="text-subheading" style={{ marginBottom: '0.75rem' }}>Dataset</p>
+            </motion.div>
+            <motion.div {...fadeUp(0.08)}>
+              <h2 style={{ marginBottom: '1.5rem' }}>
+                <span className="text-heading" style={{ color: 'var(--text-primary)', display: 'block' }}>
+                  RSNA Pneumonia
+                </span>
+                <span className="text-heading font-display" style={{ fontStyle: 'italic', color: 'var(--text-primary)', display: 'block' }}>
+                  Detection Challenge
+                </span>
+              </h2>
+            </motion.div>
+            <motion.div {...fadeUp(0.12)}>
+              <p className="text-body" style={{ fontSize: '1.05rem', lineHeight: 1.8 }}>
+                26,684 frontal chest radiographs annotated with bounding boxes for pneumonia opacities.
+                The dataset is heavily imbalanced — 77% normal, 23% pneumonia — making
+                AUC the correct metric throughout. Accuracy alone misleads on imbalanced clinical data.
+              </p>
+            </motion.div>
+          </div>
+
+          <motion.div {...fadeUp(0.1)}>
+            {[
+              { label: 'Total images', value: '26,684', pct: 100 },
+              { label: 'Normal', value: '20,672', pct: 77.5 },
+              { label: 'Pneumonia (opacity)', value: '6,012', pct: 22.5 },
+              { label: 'Training split', value: '21,347', pct: 80 },
+              { label: 'Val + Test', value: '5,337', pct: 20 },
+            ].map((row, i) => (
+              <div key={row.label} style={{ padding: '1rem 0', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                  <p className="text-subheading">{row.label}</p>
+                  <p style={{ fontFamily: 'Hanken Grotesk', fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    {row.value}
+                  </p>
+                </div>
+                <div style={{ height: '2px', background: 'var(--border)', borderRadius: '1px', overflow: 'hidden' }}>
+                  <motion.div
+                    initial={{ width: 0 }}
+                    whileInView={{ width: `${row.pct}%` }}
+                    viewport={{ once: true, amount: 0.1 }}
+                    transition={{ duration: 1.2, delay: i * 0.08, ease: [0.25, 0.1, 0.25, 1] as [number, number, number, number] }}
+                    style={{ height: '100%', background: 'var(--gradient-accent)', borderRadius: '1px' }}
+                  />
+                </div>
+              </div>
+            ))}
+          </motion.div>
+        </div>
+      </section>
+
+      <div className="divider" />
+
+      {/* cta */}
+      <section className="section" style={{
+        textAlign: 'center',
+        paddingTop: 'clamp(5rem, 10vw, 8rem)',
+        paddingBottom: 'clamp(5rem, 10vw, 8rem)',
+      }}>
+        <motion.div {...fadeUp(0)}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
+            <Sparkle size={20} style={{ color: 'var(--accent-light)', opacity: 0.6 }} />
+          </div>
+          <p className="text-subheading" style={{ marginBottom: '1rem' }}>Try it live</p>
+        </motion.div>
+        <motion.div {...fadeUp(0.08)}>
+          <h2 style={{ marginBottom: '2.5rem' }}>
+            <span className="text-heading" style={{ color: 'var(--text-primary)', display: 'block' }}>
+              Upload an X-ray.
+            </span>
+            <span className="text-heading font-display" style={{ fontStyle: 'italic', color: 'var(--text-secondary)', display: 'block' }}>
+              Get a full pipeline result.
+            </span>
+          </h2>
+        </motion.div>
+        <motion.div
+          {...fadeUp(0.14)}
+          style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center', flexWrap: 'wrap' }}
+        >
+          <Link href="/inference" style={{ textDecoration: 'none' }}>
+            <button style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+              padding: '1rem 2.5rem',
+              background: 'linear-gradient(135deg, #3A015C, #7B2FBE)',
+              border: 'none', borderRadius: '3px',
+              color: '#fff',
+              fontFamily: 'Hanken Grotesk, sans-serif',
+              fontSize: '0.9rem', fontWeight: 600,
+              letterSpacing: '0.05em',
+              boxShadow: '0 4px 24px rgba(123, 47, 190, 0.35)',
+            }}>
+              run inference <ArrowRight size={14} weight="bold" />
+            </button>
+          </Link>
+          <Link href="/overview" style={{ textDecoration: 'none' }}>
+            <button style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+              padding: '1rem 2.5rem',
+              background: 'rgba(255, 237, 223, 0.04)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              border: '1px solid rgba(255, 237, 223, 0.12)',
+              borderRadius: '3px',
+              color: 'var(--text-secondary)',
+              fontFamily: 'Hanken Grotesk, sans-serif',
+              fontSize: '0.9rem', fontWeight: 600,
+              letterSpacing: '0.05em',
+            }}>
+              view all results <ArrowUpRight size={14} weight="bold" />
+            </button>
+          </Link>
+        </motion.div>
+      </section>
+
+      <style jsx>{`
+        .pipeline-card:hover {
+          background: rgba(50, 0, 79, 0.25) !important;
+          box-shadow: 0 0 0 1px rgba(123, 47, 190, 0.3), inset 0 1px 0 rgba(255, 237, 223, 0.06) !important;
+        }
+        .pipeline-card:hover .pipeline-arrow {
+          opacity: 1 !important;
+        }
+        @media (max-width: 768px) {
+          .hero-xray-stack {
+            display: none;
+          }
+        }
+        @media (max-width: 640px) {
+          div[style*="repeat(4, 1fr)"] {
+            grid-template-columns: repeat(2, 1fr) !important;
+          }
+          div[style*="repeat(3, 1fr)"] {
+            grid-template-columns: repeat(1, 1fr) !important;
+          }
+        }
+      `}</style>
     </div>
   )
 }

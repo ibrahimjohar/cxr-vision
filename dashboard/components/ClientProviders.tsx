@@ -1,13 +1,15 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import Lenis from 'lenis'
 import Navbar from '@/components/Navbar'
 import CustomCursor from '@/components/CustomCursor'
 import AnimatedBg from '@/components/AnimatedBg'
+import Footer from '@/components/Footer'
 
 export default function ClientProviders({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark')
+  const [overlay, setOverlay] = useState<{ bg: string; key: number } | null>(null)
 
   useEffect(() => {
     const lenis = new Lenis({
@@ -30,7 +32,6 @@ export default function ClientProviders({ children }: { children: React.ReactNod
   const toggleTheme = useCallback(() => {
     const next = theme === 'dark' ? 'light' : 'dark'
 
-    // use view transitions api if available
     if (!document.startViewTransition) {
       setTheme(next)
       return
@@ -50,6 +51,7 @@ export default function ClientProviders({ children }: { children: React.ReactNod
       <main className="page-wrapper">
         {children}
       </main>
+      <Footer />
 
       <style jsx global>{`
         ::view-transition-old(root) {
