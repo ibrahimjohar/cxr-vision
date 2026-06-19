@@ -100,7 +100,7 @@ function XrayCardStack() {
                 zIndex: 10 - stackPos,
                 scale: 1 - stackPos * 0.018,
               }}
-              transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
+              transition={{ duration: 0.55, ease: [0.25, 0.1, 0.25, 1] }}
               style={{
                 position: 'absolute',
                 top: 0, left: 0,
@@ -161,7 +161,7 @@ function XrayCardStack() {
           bottom: '20px', right: '-8px',
           zIndex: 20,
           padding: '0.55rem 0.9rem',
-          background: 'rgba(8, 5, 16, 0.92)',
+          background: 'var(--bg-secondary)',
           backdropFilter: 'blur(16px)',
           WebkitBackdropFilter: 'blur(16px)',
           border: '1px solid rgba(123, 47, 190, 0.4)',
@@ -196,7 +196,7 @@ export default function HomePage() {
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
-        padding: 'calc(var(--nav-height) - 1.75rem) clamp(1.5rem, 5vw, 4rem) clamp(2rem, 4vw, 3rem)',
+        padding: 'calc(var(--nav-height) - 1.5rem) clamp(1.5rem, 5vw, 4rem) clamp(2rem, 4vw, 3rem)',
         position: 'relative',
         overflow: 'hidden',
       }}>
@@ -304,15 +304,17 @@ export default function HomePage() {
                 <button style={{
                   display: 'flex', alignItems: 'center', gap: '0.5rem',
                   padding: '0.85rem 1.8rem',
-                  background: 'rgba(255, 237, 223, 0.04)',
+                  background: 'var(--glass-btn-bg)',
                   backdropFilter: 'blur(12px)',
                   WebkitBackdropFilter: 'blur(12px)',
-                  border: '1px solid rgba(255, 237, 223, 0.12)',
+                  border: '1px solid var(--glass-btn-border)',
                   borderRadius: '3px',
-                  color: 'var(--text-secondary)',
+                  color: 'var(--glass-btn-color)',
                   fontFamily: 'Hanken Grotesk, sans-serif',
                   fontSize: '0.875rem', fontWeight: 600,
                   letterSpacing: '0.05em',
+                  outline: 'none',
+                  WebkitAppearance: 'none',
                 }}>
                   live inference <ArrowUpRight size={14} weight="bold" />
                 </button>
@@ -508,9 +510,6 @@ export default function HomePage() {
       {/* cta */}
       <section className="section" style={{ textAlign: 'center', paddingTop: 'clamp(5rem, 10vw, 8rem)', paddingBottom: 'clamp(5rem, 10vw, 8rem)' }}>
         <motion.div {...fadeUp(0)}>
-          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.5rem' }}>
-            <Sparkle size={20} style={{ color: 'var(--accent-light)', opacity: 0.6 }} />
-          </div>
           <p className="text-subheading" style={{ marginBottom: '1rem' }}>Try it live</p>
         </motion.div>
         <motion.div {...fadeUp(0.08)}>
@@ -537,10 +536,12 @@ export default function HomePage() {
             <button style={{
               display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
               padding: '1rem 2.5rem',
-              background: 'rgba(255, 237, 223, 0.04)',
+              background: 'var(--glass-btn-bg)',
               backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)',
-              border: '1px solid rgba(255, 237, 223, 0.12)', borderRadius: '3px',
-              color: 'var(--text-secondary)',
+              border: '1px solid var(--glass-btn-border)', borderRadius: '3px',
+              color: 'var(--glass-btn-color)',
+              outline: 'none',
+              WebkitAppearance: 'none',
               fontFamily: 'Hanken Grotesk, sans-serif',
               fontSize: '0.9rem', fontWeight: 600, letterSpacing: '0.05em',
             }}>
