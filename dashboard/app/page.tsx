@@ -22,6 +22,12 @@ const stats = [
   { value: 64.1, label: 'FID', sub: 'Diffusion model', decimals: 1 },
 ]
 
+const xrays = [
+  { src: '/xrays/xray1.jpg', label: 'Normal · PA View' },
+  { src: '/xrays/xray2.png', label: 'Opacity · PA View' },
+  { src: '/xrays/xray3.jpg', label: 'Consolidation · PA' },
+]
+
 function CountUp({ value, decimals, suffix = '' }: { value: number; decimals: number; suffix?: string }) {
   const ref = useRef<HTMLSpanElement>(null)
   const inView = useInView(ref as React.RefObject<Element>, { once: true, margin: '-50px' })
@@ -42,6 +48,137 @@ function CountUp({ value, decimals, suffix = '' }: { value: number; decimals: nu
   return <span ref={ref}>{displayed}{suffix}</span>
 }
 
+function XrayCardStack() {
+  const [active, setActive] = useState(0)
+  const [hovered, setHovered] = useState(false)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    if (hovered) {
+      if (intervalRef.current) clearInterval(intervalRef.current)
+      return
+    }
+    intervalRef.current = setInterval(() => {
+      setActive(prev => (prev + 1) % xrays.length)
+    }, 3000)
+    return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
+  }, [hovered])
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 24 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.1 }}
+      transition={{ duration: 0.6, delay: 0.25 }}
+    >
+      <div
+        className="hero-xray-stack"
+        style={{ position: 'relative', width: '440px', height: '530px', flexShrink: 0, cursor: 'pointer' }}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onClick={() => setActive(prev => (prev + 1) % xrays.length)}
+      >
+        {/* all 3 cards always mounted — zIndex and transforms drive stacking */}
+        {xrays.map((xray, i) => {
+          const isActive = i === active
+          // stackPos: 0 = front (active), 1 = mid, 2 = back
+          const stackPos = ((i - active) + xrays.length) % xrays.length
+          const rotations = [0, 4, 8]
+          const offsets = [0, 16, 32]
+          const rot = rotations[stackPos] ?? 8
+          const off = offsets[stackPos] ?? 32
+
+          return (
+            <motion.div
+              key={xray.src}
+              animate={{
+                rotate: rot,
+                x: off,
+                y: isActive
+                  ? hovered ? -14 : 0
+                  : off + (hovered ? -3 : 0),
+                zIndex: 10 - stackPos,
+                scale: 1 - stackPos * 0.018,
+              }}
+              transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
+              style={{
+                position: 'absolute',
+                top: 0, left: 0,
+                width: '360px', height: '440px',
+                borderRadius: '10px',
+                overflow: 'hidden',
+                border: isActive
+                  ? '1px solid rgba(123, 47, 190, 0.65)'
+                  : `1px solid rgba(123, 47, 190, ${0.22 + (2 - stackPos) * 0.07})`,
+                boxShadow: isActive
+                  ? hovered
+                    ? '0 28px 72px rgba(58,1,92,0.55), 0 0 0 1px rgba(123,47,190,0.4)'
+                    : '0 10px 40px rgba(58,1,92,0.35)'
+                  : 'none',
+                transformOrigin: 'center center',
+              }}
+            >
+              <Image
+                src={xray.src}
+                alt="chest x-ray"
+                fill
+                sizes="360px"
+                style={{
+                  objectFit: 'cover',
+                  filter: 'grayscale(100%)',
+                  opacity: isActive ? 0.76 : 0.42 - stackPos * 0.06,
+                }}
+              />
+              <div style={{
+                position: 'absolute', inset: 0,
+                background: isActive
+                  ? 'linear-gradient(160deg, rgba(58,1,92,0.14) 0%, rgba(14,8,24,0.26) 100%)'
+                  : `linear-gradient(160deg, rgba(58,1,92,${0.38 + stackPos * 0.07}), rgba(14,8,24,${0.5 + stackPos * 0.07}))`,
+              }} />
+
+              {/* metadata label — only on active */}
+              {isActive && (
+                <div style={{ position: 'absolute', inset: 0, padding: '1.1rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', pointerEvents: 'none' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontFamily: 'monospace', fontSize: '0.58rem', color: 'rgba(200,170,255,0.8)', letterSpacing: '0.08em' }}>PA VIEW</span>
+                    <span style={{ fontFamily: 'monospace', fontSize: '0.58rem', color: 'rgba(200,170,255,0.8)', letterSpacing: '0.08em' }}>RSNA</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontFamily: 'Hanken Grotesk', fontSize: '0.6rem', color: 'rgba(200,170,255,0.9)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                      {xray.label}
+                    </span>
+                    <Sparkle size={11} style={{ color: 'rgba(200,170,255,0.7)' }} />
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          )
+        })}
+
+        {/* classifier badge */}
+        <div style={{
+          position: 'absolute',
+          bottom: '20px', right: '-8px',
+          zIndex: 20,
+          padding: '0.55rem 0.9rem',
+          background: 'rgba(8, 5, 16, 0.92)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          border: '1px solid rgba(123, 47, 190, 0.4)',
+          borderRadius: '6px',
+        }}>
+          <p style={{ fontFamily: 'Hanken Grotesk', fontSize: '0.58rem', color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '0.15rem' }}>
+            classifier acc.
+          </p>
+          <p style={{ fontFamily: 'Hanken Grotesk', fontSize: '1.1rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
+            85.08%
+          </p>
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 18 },
   whileInView: { opacity: 1, y: 0 },
@@ -59,20 +196,20 @@ export default function HomePage() {
         display: 'flex',
         flexDirection: 'column',
         justifyContent: 'center',
-        padding: 'calc(var(--nav-height) + 3rem) clamp(1.5rem, 5vw, 4rem) clamp(3rem, 6vw, 5rem)',
+        padding: 'calc(var(--nav-height) - 1.75rem) clamp(1.5rem, 5vw, 4rem) clamp(2rem, 4vw, 3rem)',
         position: 'relative',
         overflow: 'hidden',
       }}>
 
-        {/* dot grid fading under navbar */}
+        {/* dot grid */}
         <div style={{
           position: 'absolute',
           inset: 0,
           backgroundImage: 'radial-gradient(circle, var(--text-muted) 1px, transparent 1px)',
           backgroundSize: '28px 28px',
-          WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.3) 80px, black 160px)',
-          maskImage: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.3) 80px, black 160px)',
-          opacity: 0.4,
+          WebkitMaskImage: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.3) 10px, black 50px)',
+          maskImage: 'linear-gradient(to bottom, transparent 0%, rgba(0,0,0,0.3) 10px, black 50px)',
+          opacity: 0.5,
           pointerEvents: 'none',
         }} />
 
@@ -82,7 +219,7 @@ export default function HomePage() {
           inset: 0,
           backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 512 512' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E")`,
           pointerEvents: 'none',
-          opacity: 0.2,
+          opacity: 0.4,
         }} />
 
         <div className="hero-grid" style={{
@@ -104,7 +241,7 @@ export default function HomePage() {
                 padding: '0.4rem 0.9rem',
                 border: '1px solid var(--border)',
                 borderRadius: '2px',
-                marginBottom: '1.75rem',
+                marginBottom: '1.25rem',
               }}>
                 <Stethoscope size={12} style={{ color: 'var(--accent-light)' }} />
                 <span className="text-subheading" style={{ color: 'var(--text-muted)' }}>
@@ -114,7 +251,7 @@ export default function HomePage() {
             </motion.div>
 
             <motion.div {...fadeUp(0.06)}>
-              <h1 style={{ marginBottom: '1.5rem', lineHeight: 0.92 }}>
+              <h1 style={{ marginBottom: '1.25rem', lineHeight: 0.92 }}>
                 <span className="text-display" style={{ color: 'var(--text-primary)', display: 'block' }}>
                   Chest X-Ray
                 </span>
@@ -140,7 +277,7 @@ export default function HomePage() {
             </motion.div>
 
             <motion.div {...fadeUp(0.14)}>
-              <p className="text-body" style={{ maxWidth: '500px', marginBottom: '2.25rem', fontSize: '1.05rem', lineHeight: 1.8 }}>
+              <p className="text-body" style={{ maxWidth: '500px', marginBottom: '2rem', fontSize: '1.05rem', lineHeight: 1.8 }}>
                 Six-stage machine learning pipeline that identifies pneumonia in chest X-rays, combining
                 classical image processing, convolutional networks, generative models, segmentation,
                 and vision-language models. Trained on 26,684 radiographs from the RSNA dataset.
@@ -183,80 +320,8 @@ export default function HomePage() {
             </motion.div>
           </div>
 
-          {/* right: stacked x-ray photo cards */}
-          <motion.div {...fadeUp(0.25)}>
-            <div className="hero-xray-stack" style={{ position: 'relative', width: '300px', height: '400px', flexShrink: 0 }}>
-              {/* back card */}
-              <div style={{
-                position: 'absolute',
-                top: '20px', left: '20px',
-                width: '255px', height: '310px',
-                borderRadius: '8px',
-                transform: 'rotate(7deg)',
-                overflow: 'hidden',
-                border: '1px solid rgba(123, 47, 190, 0.25)',
-              }}>
-                <Image src="/xrays/xray3.jpg" alt="chest x-ray" fill style={{ objectFit: 'cover', opacity: 0.35, filter: 'grayscale(100%)' }} />
-                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(58,1,92,0.6), rgba(14,8,24,0.7))' }} />
-              </div>
-
-              {/* mid card */}
-              <div style={{
-                position: 'absolute',
-                top: '10px', left: '10px',
-                width: '255px', height: '310px',
-                borderRadius: '8px',
-                transform: 'rotate(3.5deg)',
-                overflow: 'hidden',
-                border: '1px solid rgba(123, 47, 190, 0.35)',
-              }}>
-                <Image src="/xrays/xray2.png" alt="chest x-ray" fill style={{ objectFit: 'cover', opacity: 0.45, filter: 'grayscale(100%)' }} />
-                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(135deg, rgba(58,1,92,0.5), rgba(14,8,24,0.6))' }} />
-              </div>
-
-              {/* front card */}
-              <div style={{
-                position: 'absolute',
-                top: 0, left: 0,
-                width: '255px', height: '310px',
-                borderRadius: '8px',
-                overflow: 'hidden',
-                border: '1px solid rgba(123, 47, 190, 0.5)',
-                backdropFilter: 'blur(4px)',
-                WebkitBackdropFilter: 'blur(4px)',
-              }}>
-                <Image src="/xrays/xray1.jpg" alt="chest x-ray" fill style={{ objectFit: 'cover', opacity: 0.55, filter: 'grayscale(100%)' }} />
-                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(160deg, rgba(58,1,92,0.35) 0%, rgba(14,8,24,0.55) 100%)' }} />
-                <div style={{ position: 'absolute', inset: 0, padding: '1rem', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <span style={{ fontFamily: 'monospace', fontSize: '0.6rem', color: 'rgba(123,47,190,0.85)', letterSpacing: '0.08em' }}>PA VIEW</span>
-                    <span style={{ fontFamily: 'monospace', fontSize: '0.6rem', color: 'rgba(123,47,190,0.85)', letterSpacing: '0.08em' }}>RSNA</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontFamily: 'Hanken Grotesk', fontSize: '0.65rem', color: 'var(--accent-light)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-                      chest PA
-                    </span>
-                    <Sparkle size={12} style={{ color: 'var(--accent-light)', opacity: 0.7 }} />
-                  </div>
-                </div>
-              </div>
-
-              {/* floating metric badge */}
-              <div style={{
-                position: 'absolute',
-                bottom: '16px', right: '-8px',
-                padding: '0.6rem 1rem',
-                background: 'rgba(8, 5, 16, 0.9)',
-                backdropFilter: 'blur(16px)',
-                WebkitBackdropFilter: 'blur(16px)',
-                border: '1px solid rgba(123, 47, 190, 0.4)',
-                borderRadius: '6px',
-              }}>
-                <p style={{ fontFamily: 'Hanken Grotesk', fontSize: '0.6rem', color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '0.2rem' }}>classifier acc.</p>
-                <p style={{ fontFamily: 'Hanken Grotesk', fontSize: '1.15rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>85.08%</p>
-              </div>
-            </div>
-          </motion.div>
+          {/* right */}
+          <XrayCardStack />
         </div>
 
         {/* scroll indicator */}
@@ -264,7 +329,7 @@ export default function HomePage() {
           {...fadeUp(0.5)}
           style={{
             position: 'absolute',
-            bottom: '2rem',
+            bottom: '1.75rem',
             left: 'clamp(1.5rem, 5vw, 4rem)',
             display: 'flex', alignItems: 'center', gap: '0.75rem',
           }}
@@ -279,7 +344,7 @@ export default function HomePage() {
 
       <div className="divider" />
 
-      {/* stats strip — aligned with .section */}
+      {/* stats strip */}
       <section className="section" style={{ paddingTop: 'clamp(3rem, 6vw, 5rem)', paddingBottom: 'clamp(3rem, 6vw, 5rem)' }}>
         <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)' }}>
           {stats.map((stat, i) => (

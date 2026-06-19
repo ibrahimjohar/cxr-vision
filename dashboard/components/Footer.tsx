@@ -41,7 +41,7 @@ export default function Footer() {
           textTransform: 'uppercase',
           color: 'var(--text-muted)',
         }}>
-          PyTorch · Next.js · Modal · Vercel
+          OpenCV · PyTorch · Next.js · Modal
         </p>
 
         {/* social icons */}
