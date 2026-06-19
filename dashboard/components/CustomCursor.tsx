@@ -54,7 +54,7 @@ export default function CustomCursor() {
           top: 0, left: 0,
           x: springX, y: springY,
           translateX: '-50%', translateY: '-50%',
-          zIndex: 9999,
+          zIndex: 99999,
           pointerEvents: 'none',
           width: hovered ? 48 : 32,
           height: hovered ? 48 : 32,

@@ -315,7 +315,7 @@ button:active { transform: scale(0.96); }
   100% { opacity: 1; transform: translateY(0); }
 }
 
-.page-wrapper > * {
+.page-wrapper > *:not(.modal-root) {
   animation: pageEnter 0.4s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
 }
 
