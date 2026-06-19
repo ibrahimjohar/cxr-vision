@@ -394,20 +394,20 @@ export default function PreprocessingPage() {
 
       {/* pipeline flow + compare side by side */}
       <section className="section">
-        <motion.div {...fadeUp(0)}>
-          <p className="text-subheading" style={{ marginBottom: '0.75rem' }}>Processing Pipeline</p>
-        </motion.div>
-        <motion.div {...fadeUp(0.08)}>
-          <h2 style={{ marginBottom: '3rem' }}>
-            <span className="text-heading" style={{ color: 'var(--text-primary)' }}>Ordered operations, </span>
-            <span className="text-heading font-display" style={{ fontStyle: 'italic', color: 'var(--text-primary)' }}>each with purpose.</span>
-          </h2>
-        </motion.div>
-
         <div className="pipeline-compare-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3rem', alignItems: 'start' }}>
 
-          {/* left: stacked pipeline steps */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0', overflow: 'hidden', border: '1px solid var(--border)', borderRadius: '8px' }}>
+          {/* left: heading + stacked pipeline steps */}
+          <div>
+            <motion.div {...fadeUp(0)}>
+              <p className="text-subheading" style={{ marginBottom: '0.5rem' }}>Processing Pipeline</p>
+            </motion.div>
+            <motion.div {...fadeUp(0.06)}>
+              <h2 style={{ marginBottom: '1.5rem' }}>
+                <span className="text-heading" style={{ color: 'var(--text-primary)' }}>Ordered </span>
+                <span className="text-heading font-display" style={{ fontStyle: 'italic', color: 'var(--text-primary)' }}>operations.</span>
+              </h2>
+            </motion.div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0', overflow: 'hidden', border: '1px solid var(--border)', borderRadius: '8px' }}>
             {techniques.map((t, i) => (
               <motion.div key={t.id} {...fadeUp(i * 0.07)}>
                 <button
@@ -456,29 +456,29 @@ export default function PreprocessingPage() {
                 </button>
               </motion.div>
             ))}
+            </div>
           </div>
 
           {/* right: compare slider */}
           <div>
-            <div style={{ marginBottom: '1rem' }}>
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={current.id + '_label'}
-                  initial={{ opacity: 0, y: 6 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -4 }}
-                  transition={{ duration: 0.25 }}
-                >
-                  <p className="text-subheading" style={{ marginBottom: '0.3rem' }}>Compare</p>
-                  <h3 style={{ fontFamily: 'Instrument Serif', fontSize: 'clamp(1.2rem, 2vw, 1.6rem)', fontWeight: 400, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
-                    Raw vs <span style={{ fontStyle: 'italic' }}>{current.label}.</span>
-                  </h3>
-                  <p className="text-body" style={{ fontSize: '0.85rem' }}>
-                    Hover over the image to reveal the difference.
-                  </p>
-                </motion.div>
-              </AnimatePresence>
-            </div>
+            <p className="text-subheading" style={{ marginBottom: '0.5rem' }}>Compare</p>
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={current.id + '_label'}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.25 }}
+              >
+                <h2 style={{ marginBottom: '0.5rem' }}>
+                  <span className="text-heading" style={{ color: 'var(--text-primary)' }}>Raw vs </span>
+                  <span className="text-heading font-display" style={{ fontStyle: 'italic', color: 'var(--text-primary)' }}>{current.label}.</span>
+                </h2>
+                <p className="text-body" style={{ fontSize: '0.875rem', marginBottom: '1.5rem' }}>
+                  Hover over the image to reveal the difference.
+                </p>
+              </motion.div>
+            </AnimatePresence>
 
             <AnimatePresence mode="wait">
               <motion.div
