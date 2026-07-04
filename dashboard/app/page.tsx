@@ -123,6 +123,7 @@ function XrayCardStack() {
                 alt="chest x-ray"
                 fill
                 sizes="360px"
+                priority={i === 0}
                 style={{
                   objectFit: 'cover',
                   filter: 'grayscale(100%)',
