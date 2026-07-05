@@ -16,6 +16,7 @@ const links = [
   { href: '/clip', label: 'clip' },
   { href: '/generative', label: 'generative' },
   { href: '/inference', label: 'inference' },
+  { href: '/about', label: 'about'}
 ]
 
 interface NavbarProps {
