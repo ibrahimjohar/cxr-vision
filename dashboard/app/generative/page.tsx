@@ -3,8 +3,11 @@
 import Image from 'next/image'
 import Link from 'next/link'
 import { motion, AnimatePresence, useInView, animate } from 'framer-motion'
-import { useRef, useState, useEffect } from 'react'
-import { ArrowLeft, ArrowRight, CheckCircle, Sparkle, Lightning } from '@phosphor-icons/react'
+import { useRef, useState, useEffect, useCallback } from 'react'
+import { ArrowLeft, ArrowRight, CheckCircle, Sparkle, Lightning, CircleNotch, Warning } from '@phosphor-icons/react'
+
+//deployed modal endpoint. update this if the app is ever renamed or redeployed under a new url.
+const API_BASE = 'https://ibrahimjoharfarooqi--cxr-vision-inference-fastapi-app.modal.run'
 
 function CountUp({ to, decimals = 0, suffix = '', duration = 1.8 }: { to: number; decimals?: number; suffix?: string; duration?: number }) {
   const ref = useRef<HTMLSpanElement>(null)
@@ -92,10 +95,53 @@ const verdicts = [
 export default function GenerativePage() {
   const [activeGanEpoch, setActiveGanEpoch] = useState(4) // epoch 20
   const [activeDiffEpoch, setActiveDiffEpoch] = useState(2) // epoch 10
-  const [activeGenModel, setActiveGenModel] = useState<'gan' | 'diffusion'>('diffusion')
+
+  const [ganGenerating, setGanGenerating] = useState(false)
+  const [ganGenError, setGanGenError] = useState<string | null>(null)
+  const [ganGenImage, setGanGenImage] = useState<string | null>(null)
+
+  const [diffGenerating, setDiffGenerating] = useState(false)
+  const [diffGenError, setDiffGenError] = useState<string | null>(null)
+  const [diffGenImage, setDiffGenImage] = useState<string | null>(null)
 
   const currentGan = ganSamples[activeGanEpoch]
   const currentDiff = diffusionSamples[activeDiffEpoch]
+
+  const handleGenerateGan = useCallback(async () => {
+    setGanGenerating(true)
+    setGanGenError(null)
+    setGanGenImage(null)
+    try {
+      const res = await fetch(`${API_BASE}/generate/gan`, { method: 'POST' })
+      if (!res.ok) {
+        throw new Error(res.status === 429 ? 'rate limit reached, try again in a minute' : 'generation request failed')
+      }
+      const data = await res.json()
+      setGanGenImage(data.image_png_base64)
+    } catch (err) {
+      setGanGenError(err instanceof Error ? err.message : 'something went wrong')
+    } finally {
+      setGanGenerating(false)
+    }
+  }, [])
+
+  const handleGenerateDiffusion = useCallback(async () => {
+    setDiffGenerating(true)
+    setDiffGenError(null)
+    setDiffGenImage(null)
+    try {
+      const res = await fetch(`${API_BASE}/generate/diffusion`, { method: 'POST' })
+      if (!res.ok) {
+        throw new Error(res.status === 429 ? 'rate limit reached, try again in a minute' : 'generation request failed')
+      }
+      const data = await res.json()
+      setDiffGenImage(data.image_png_base64)
+    } catch (err) {
+      setDiffGenError(err instanceof Error ? err.message : 'something went wrong')
+    } finally {
+      setDiffGenerating(false)
+    }
+  }, [])
 
   return (
     <div>
@@ -404,7 +450,7 @@ export default function GenerativePage() {
 
       <div className="divider" />
 
-      {/* live generation — stubbed, backend not deployed yet */}
+      {/* live generation — calls the deployed modal endpoints */}
       <section className="section">
         <motion.div {...fadeUp(0)}>
           <p className="text-subheading" style={{ marginBottom: '0.5rem' }}>Live Generation</p>
@@ -417,73 +463,127 @@ export default function GenerativePage() {
         </motion.div>
         <motion.div {...fadeUp(0.1)}>
           <p className="text-body" style={{ maxWidth: '620px', fontSize: '0.95rem', lineHeight: 1.8, marginBottom: '2rem' }}>
-            Runs inference on a Modal-hosted CPU endpoint once deployed — one forward pass for GAN,
-            50 DDIM steps (~10–20s) for diffusion. Not wired up yet.
+            Runs inference on a live Modal-hosted CPU endpoint — one forward pass for GAN,
+            50 DDIM steps (~10-20s) for diffusion.
           </p>
         </motion.div>
 
-        <div style={{ maxWidth: '520px', border: '1px solid var(--border)', borderRadius: '10px', overflow: 'hidden', background: 'var(--surface)' }}>
-          {/* model tabs */}
-          <div style={{ display: 'flex', borderBottom: '1px solid var(--border)' }}>
-            {(['gan', 'diffusion'] as const).map((m) => (
-              <button
-                key={m}
-                onClick={() => setActiveGenModel(m)}
-                style={{
-                  flex: 1,
-                  padding: '0.9rem',
-                  background: activeGenModel === m ? 'var(--bg-secondary)' : 'transparent',
-                  border: 'none',
-                  borderBottom: activeGenModel === m ? '2px solid var(--accent-light)' : '2px solid transparent',
-                  color: activeGenModel === m ? 'var(--text-primary)' : 'var(--text-muted)',
-                  fontFamily: 'Hanken Grotesk',
-                  fontSize: '0.8rem',
-                  fontWeight: 700,
-                  letterSpacing: '0.06em',
-                  textTransform: 'uppercase',
-                  transition: 'background 0.2s, color 0.2s, border-color 0.2s',
-                }}
-              >
-                {m === 'gan' ? 'DCGAN' : 'DDPM'}
-              </button>
-            ))}
-          </div>
+        <div className="live-gen-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '3rem', alignItems: 'start' }}>
 
-          {/* preview area */}
-          <div style={{ padding: '2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
+          {/* gan generation */}
+          <div>
+            <p className="text-subheading" style={{ marginBottom: '0.75rem', color: 'var(--accent-light)' }}>DCGAN</p>
             <div style={{
-              width: '160px', height: '160px', borderRadius: '10px',
-              border: '1px dashed var(--border-accent)',
+              position: 'relative', width: '100%', aspectRatio: '1', borderRadius: '10px',
+              border: ganGenImage ? '1px solid var(--border)' : '1px dashed var(--border-accent)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'var(--bg)',
+              background: ganGenImage ? '#fff' : 'var(--surface)',
+              overflow: 'hidden', marginBottom: '1.25rem',
             }}>
-              <Sparkle size={32} style={{ color: 'var(--text-muted)', opacity: 0.4 }} />
+              {ganGenerating ? (
+                <motion.span animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} style={{ display: 'flex' }}>
+                  <CircleNotch size={32} style={{ color: 'var(--text-muted)' }} weight="bold" />
+                </motion.span>
+              ) : ganGenImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={`data:image/png;base64,${ganGenImage}`} alt="generated gan sample" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+              ) : (
+                <Sparkle size={36} style={{ color: 'var(--text-muted)', opacity: 0.4 }} />
+              )}
             </div>
 
             <button
-              disabled
+              onClick={handleGenerateGan}
+              disabled={ganGenerating}
               style={{
-                display: 'flex', alignItems: 'center', gap: '0.5rem',
-                padding: '0.75rem 1.75rem',
-                background: 'var(--glass-btn-bg)',
-                border: '1px solid var(--glass-btn-border)',
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                padding: '0.85rem',
+                background: ganGenerating ? 'var(--glass-btn-bg)' : 'linear-gradient(135deg, #3A015C, #7B2FBE)',
+                border: ganGenerating ? '1px solid var(--glass-btn-border)' : 'none',
                 borderRadius: '3px',
-                color: 'var(--text-muted)',
-                fontFamily: 'Hanken Grotesk',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                letterSpacing: '0.05em',
-                cursor: 'not-allowed',
-                opacity: 0.6,
+                color: ganGenerating ? 'var(--text-muted)' : '#fff',
+                fontFamily: 'Hanken Grotesk', fontSize: '0.8rem', fontWeight: 600, letterSpacing: '0.05em',
+                cursor: ganGenerating ? 'not-allowed' : 'pointer',
+                boxShadow: ganGenerating ? 'none' : '0 4px 24px rgba(123,47,190,0.3)',
               }}
             >
-              <Lightning size={14} weight="bold" />
-              generate {activeGenModel === 'gan' ? 'gan' : 'diffusion'} sample
+              {ganGenerating ? (
+                <motion.span animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} style={{ display: 'flex' }}>
+                  <CircleNotch size={14} weight="bold" />
+                </motion.span>
+              ) : (
+                <Lightning size={14} weight="bold" />
+              )}
+              {ganGenerating ? 'generating' : 'generate gan sample'}
             </button>
 
-            <p className="text-subheading" style={{ textAlign: 'center' }}>
-              coming soon — pending Modal deployment
+            <p className="text-subheading" style={{ textAlign: 'center', marginTop: '0.6rem' }}>
+              {ganGenerating ? 'one forward pass, should be quick' : ganGenError ? '' : 'runs on a live modal-hosted cpu endpoint'}
             </p>
+            {ganGenError && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', justifyContent: 'center', marginTop: '0.4rem' }}>
+                <Warning size={12} style={{ color: '#C084FC' }} weight="bold" />
+                <p className="text-subheading" style={{ color: '#C084FC' }}>{ganGenError}</p>
+              </div>
+            )}
+          </div>
+
+          {/* diffusion generation */}
+          <div>
+            <p className="text-subheading" style={{ marginBottom: '0.75rem', color: '#9B6DCC' }}>DDPM Diffusion</p>
+            <div style={{
+              position: 'relative', width: '100%', aspectRatio: '1', borderRadius: '10px',
+              border: diffGenImage ? '1px solid var(--border)' : '1px dashed var(--border-accent)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: diffGenImage ? '#fff' : 'var(--surface)',
+              overflow: 'hidden', marginBottom: '1.25rem',
+            }}>
+              {diffGenerating ? (
+                <motion.span animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} style={{ display: 'flex' }}>
+                  <CircleNotch size={32} style={{ color: 'var(--text-muted)' }} weight="bold" />
+                </motion.span>
+              ) : diffGenImage ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={`data:image/png;base64,${diffGenImage}`} alt="generated diffusion sample" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+              ) : (
+                <Sparkle size={36} style={{ color: 'var(--text-muted)', opacity: 0.4 }} />
+              )}
+            </div>
+
+            <button
+              onClick={handleGenerateDiffusion}
+              disabled={diffGenerating}
+              style={{
+                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                padding: '0.85rem',
+                background: diffGenerating ? 'var(--glass-btn-bg)' : 'linear-gradient(135deg, #3A015C, #7B2FBE)',
+                border: diffGenerating ? '1px solid var(--glass-btn-border)' : 'none',
+                borderRadius: '3px',
+                color: diffGenerating ? 'var(--text-muted)' : '#fff',
+                fontFamily: 'Hanken Grotesk', fontSize: '0.8rem', fontWeight: 600, letterSpacing: '0.05em',
+                cursor: diffGenerating ? 'not-allowed' : 'pointer',
+                boxShadow: diffGenerating ? 'none' : '0 4px 24px rgba(123,47,190,0.3)',
+              }}
+            >
+              {diffGenerating ? (
+                <motion.span animate={{ rotate: 360 }} transition={{ duration: 1, repeat: Infinity, ease: 'linear' }} style={{ display: 'flex' }}>
+                  <CircleNotch size={14} weight="bold" />
+                </motion.span>
+              ) : (
+                <Lightning size={14} weight="bold" />
+              )}
+              {diffGenerating ? 'generating' : 'generate diffusion sample'}
+            </button>
+
+            <p className="text-subheading" style={{ textAlign: 'center', marginTop: '0.6rem' }}>
+              {diffGenerating ? '50 ddim steps, roughly 10-20s on cpu' : diffGenError ? '' : 'runs on a live modal-hosted cpu endpoint'}
+            </p>
+            {diffGenError && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', justifyContent: 'center', marginTop: '0.4rem' }}>
+                <Warning size={12} style={{ color: '#C084FC' }} weight="bold" />
+                <p className="text-subheading" style={{ color: '#C084FC' }}>{diffGenError}</p>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -511,6 +611,7 @@ export default function GenerativePage() {
           .spec-grid { grid-template-columns: 1fr !important; }
           .sample-evo-grid { grid-template-columns: 1fr !important; }
           .fid-verdict-grid { grid-template-columns: 1fr !important; }
+          .live-gen-grid { grid-template-columns: 1fr !important; }
           .metrics-grid { grid-template-columns: repeat(2, 1fr) !important; }
         }
       `}</style>
