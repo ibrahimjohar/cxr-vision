@@ -1,12 +1,16 @@
 'use client'
 
 import Link from 'next/link'
-import { motion } from 'framer-motion'
-import { useRef, useState, useCallback } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
+import { useRef, useState, useCallback, useEffect } from 'react'
 import {
   ArrowLeft, ArrowRight, UploadSimple, ChartBar,
   Selection, ArrowsClockwise, Sparkle, Lightning, X,
+  CircleNotch, Warning,
 } from '@phosphor-icons/react'
+
+//deployed modal endpoint. update this if the app is ever renamed or redeployed under a new url.
+const API_BASE = 'https://ibrahimjoharfarooqi--cxr-vision-inference-fastapi-app.modal.run'
 
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 18 },
@@ -29,26 +33,40 @@ const layerColor: Record<string, string> = {
   head: '#C084FC',
 }
 
-const resultCards = [
-  { id: 'classifier', label: 'Classifier', icon: ChartBar, detail: 'Normal / Pneumonia probability' },
-  { id: 'unet', label: 'U-Net Heatmap', icon: Selection, detail: 'Opacity localization overlay' },
-  { id: 'vae', label: 'VAE Reconstruction', icon: ArrowsClockwise, detail: 'Recon error anomaly score' },
-  { id: 'clip', label: 'CLIP Scores', icon: Sparkle, detail: 'Zero-shot vs BiomedCLIP' },
-]
+interface PredictResponse {
+  classifier: { normal: number; pneumonia: number }
+  unet: { mask_png_base64: string }
+  vae: { reconstruction_png_base64: string; reconstruction_mse: number }
+}
+
+interface ClipResponse {
+  openai_clip: { normal: number; pneumonia: number }
+  biomedclip: { normal: number; pneumonia: number }
+}
 
 export default function InferencePage() {
+  const [file, setFile] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState<string | null>(null)
   const [fileName, setFileName] = useState<string | null>(null)
   const [dragActive, setDragActive] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [predictResult, setPredictResult] = useState<PredictResponse | null>(null)
+  const [clipResult, setClipResult] = useState<ClipResponse | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const resultsRef = useRef<HTMLDivElement>(null)
 
-  const handleFile = useCallback((file: File | undefined) => {
-    if (!file || !file.type.startsWith('image/')) return
+  const handleFile = useCallback((f: File | undefined) => {
+    if (!f || !f.type.startsWith('image/')) return
     setPreviewUrl((prev) => {
       if (prev) URL.revokeObjectURL(prev)
-      return URL.createObjectURL(file)
+      return URL.createObjectURL(f)
     })
-    setFileName(file.name)
+    setFile(f)
+    setFileName(f.name)
+    setPredictResult(null)
+    setClipResult(null)
+    setError(null)
   }, [])
 
   const onDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
@@ -62,9 +80,58 @@ export default function InferencePage() {
       if (prev) URL.revokeObjectURL(prev)
       return null
     })
+    setFile(null)
     setFileName(null)
+    setPredictResult(null)
+    setClipResult(null)
+    setError(null)
     if (inputRef.current) inputRef.current.value = ''
   }, [])
+
+  const runInference = useCallback(async () => {
+    if (!file) return
+    setLoading(true)
+    setError(null)
+    setPredictResult(null)
+    setClipResult(null)
+
+    try {
+      const predictForm = new FormData()
+      predictForm.append('file', file)
+      const clipForm = new FormData()
+      clipForm.append('file', file)
+
+      const [predictRes, clipRes] = await Promise.all([
+        fetch(`${API_BASE}/predict`, { method: 'POST', body: predictForm }),
+        fetch(`${API_BASE}/clip`, { method: 'POST', body: clipForm }),
+      ])
+
+      if (!predictRes.ok) {
+        throw new Error(predictRes.status === 429 ? 'rate limit reached, try again in a minute' : 'predict request failed')
+      }
+      if (!clipRes.ok) {
+        throw new Error(clipRes.status === 429 ? 'rate limit reached, try again in a minute' : 'clip request failed')
+      }
+
+      const predictData: PredictResponse = await predictRes.json()
+      const clipData: ClipResponse = await clipRes.json()
+
+      setPredictResult(predictData)
+      setClipResult(clipData)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'something went wrong')
+    } finally {
+      setLoading(false)
+    }
+  }, [file])
+
+  const hasResults = predictResult !== null && clipResult !== null
+
+  useEffect(() => {
+    if (hasResults && resultsRef.current) {
+      resultsRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [hasResults])
 
   return (
     <div>
@@ -98,8 +165,8 @@ export default function InferencePage() {
         <motion.div {...fadeUp(0.12)}>
           <p className="text-body" style={{ maxWidth: '620px', fontSize: '1.05rem', lineHeight: 1.8 }}>
             One chest X-ray, four models. Upload an image and it runs through the classifier, the
-            attention U-Net, the VAE, and both CLIP variants — all four results side by side.
-            Inference isn&apos;t live yet; this is the interface waiting on the Modal backend.
+            attention U-Net, the VAE, and both CLIP variants — all four results side by side, live
+            on a Modal-hosted CPU endpoint.
           </p>
         </motion.div>
       </section>
@@ -196,29 +263,50 @@ export default function InferencePage() {
 
             <motion.div {...fadeUp(0.16)} style={{ marginTop: '1.25rem' }}>
               <button
-                disabled
+                onClick={runInference}
+                disabled={!file || loading}
                 style={{
                   width: '100%',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
                   padding: '0.85rem',
-                  background: 'var(--glass-btn-bg)',
-                  border: '1px solid var(--glass-btn-border)',
+                  background: (!file || loading) ? 'var(--glass-btn-bg)' : 'linear-gradient(135deg, #3A015C, #7B2FBE)',
+                  border: (!file || loading) ? '1px solid var(--glass-btn-border)' : 'none',
                   borderRadius: '3px',
-                  color: 'var(--text-muted)',
+                  color: (!file || loading) ? 'var(--text-muted)' : '#fff',
                   fontFamily: 'Hanken Grotesk',
                   fontSize: '0.85rem',
                   fontWeight: 600,
                   letterSpacing: '0.05em',
-                  cursor: 'not-allowed',
-                  opacity: previewUrl ? 0.7 : 0.5,
+                  cursor: (!file || loading) ? 'not-allowed' : 'pointer',
+                  boxShadow: (!file || loading) ? 'none' : '0 4px 24px rgba(123,47,190,0.3)',
                 }}
               >
-                <Lightning size={14} weight="bold" />
-                run inference
+                {loading ? (
+                  <motion.span
+                    animate={{ rotate: 360 }}
+                    transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                    style={{ display: 'flex' }}
+                  >
+                    <CircleNotch size={14} weight="bold" />
+                  </motion.span>
+                ) : (
+                  <Lightning size={14} weight="bold" />
+                )}
+                {loading ? 'running inference' : 'run inference'}
               </button>
               <p className="text-subheading" style={{ textAlign: 'center', marginTop: '0.6rem' }}>
-                coming soon — pending Modal deployment
+                {loading
+                  ? 'cold start can take 10-30s on the first request'
+                  : error
+                  ? ''
+                  : 'runs on a live modal-hosted cpu endpoint'}
               </p>
+              {error && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', justifyContent: 'center', marginTop: '0.5rem' }}>
+                  <Warning size={12} style={{ color: '#C084FC' }} weight="bold" />
+                  <p className="text-subheading" style={{ color: '#C084FC' }}>{error}</p>
+                </div>
+              )}
             </motion.div>
           </div>
 
@@ -272,8 +360,8 @@ export default function InferencePage() {
 
       <div className="divider" />
 
-      {/* result cards — placeholders until backend is live */}
-      <section className="section">
+      {/* result cards */}
+      <section className="section" ref={resultsRef}>
         <motion.div {...fadeUp(0)}>
           <p className="text-subheading" style={{ marginBottom: '0.5rem' }}>Results</p>
         </motion.div>
@@ -284,32 +372,145 @@ export default function InferencePage() {
           </h2>
         </motion.div>
 
-        <div className="result-cards-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}>
-          {resultCards.map((card, i) => {
-            const Icon = card.icon
-            return (
-              <motion.div key={card.id} {...fadeUp(i * 0.06)}>
-                <div style={{
-                  padding: '1.75rem 1.25rem',
-                  border: '1px dashed var(--border-accent)',
-                  borderRadius: '8px',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  textAlign: 'center',
-                  gap: '0.75rem',
-                  minHeight: '180px',
-                  justifyContent: 'center',
-                }}>
-                  <Icon size={22} style={{ color: 'var(--text-muted)', opacity: 0.5 }} />
-                  <p style={{ fontFamily: 'Hanken Grotesk', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>{card.label}</p>
-                  <p className="text-subheading" style={{ fontSize: '0.62rem' }}>{card.detail}</p>
-                  <p className="text-subheading" style={{ fontSize: '0.58rem', color: 'var(--text-muted)', opacity: 0.7 }}>renders after upload</p>
+        <AnimatePresence mode="wait">
+          {hasResults ? (
+            <motion.div key="results" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <div
+                className="result-cards-grid"
+                style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}
+              >
+              {/* classifier */}
+              <div style={{ padding: '1.5rem', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.25rem' }}>
+                  <ChartBar size={18} style={{ color: 'var(--accent-light)' }} />
+                  <p style={{ fontFamily: 'Hanken Grotesk', fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>Classifier</p>
                 </div>
-              </motion.div>
-            )
-          })}
-        </div>
+                {[
+                  { label: 'Normal', value: predictResult!.classifier.normal, color: 'var(--accent-light)' },
+                  { label: 'Pneumonia', value: predictResult!.classifier.pneumonia, color: '#9B6DCC' },
+                ].map((row) => (
+                  <div key={row.label} style={{ marginBottom: '0.9rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                      <p className="text-subheading" style={{ fontSize: '0.75rem' }}>{row.label}</p>
+                      <p style={{ fontFamily: 'Hanken Grotesk', fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>{(row.value * 100).toFixed(1)}%</p>
+                    </div>
+                    <div style={{ height: '5px', background: 'var(--border)', borderRadius: '2px', overflow: 'hidden' }}>
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${row.value * 100}%` }}
+                        transition={{ duration: 0.6 }}
+                        style={{ height: '100%', background: row.color }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* unet */}
+              <div style={{ padding: '1.5rem', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.25rem' }}>
+                  <Selection size={18} style={{ color: 'var(--accent-light)' }} />
+                  <p style={{ fontFamily: 'Hanken Grotesk', fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>U-Net Heatmap</p>
+                </div>
+                <div style={{ position: 'relative', width: '100%', aspectRatio: '1', borderRadius: '6px', overflow: 'hidden', background: '#000' }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`data:image/png;base64,${predictResult!.unet.mask_png_base64}`}
+                    alt="U-Net predicted opacity mask"
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  />
+                </div>
+                <p className="text-subheading" style={{ fontSize: '0.72rem', marginTop: '0.65rem', textAlign: 'center' }}>
+                  bright regions = predicted opacity
+                </p>
+              </div>
+
+              {/* vae */}
+              <div style={{ padding: '1.5rem', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.25rem' }}>
+                  <ArrowsClockwise size={18} style={{ color: 'var(--accent-light)' }} />
+                  <p style={{ fontFamily: 'Hanken Grotesk', fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>VAE Reconstruction</p>
+                </div>
+                <div style={{ position: 'relative', width: '100%', aspectRatio: '1', borderRadius: '6px', overflow: 'hidden', background: '#000' }}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`data:image/png;base64,${predictResult!.vae.reconstruction_png_base64}`}
+                    alt="VAE reconstruction"
+                    style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+                  />
+                </div>
+                <p className="text-subheading" style={{ fontSize: '0.72rem', marginTop: '0.65rem', textAlign: 'center' }}>
+                  recon mse: {predictResult!.vae.reconstruction_mse.toFixed(4)}
+                </p>
+              </div>
+
+              {/* clip */}
+              <div style={{ padding: '1.5rem', border: '1px solid var(--border)', borderRadius: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '1.25rem' }}>
+                  <Sparkle size={18} style={{ color: 'var(--accent-light)' }} />
+                  <p style={{ fontFamily: 'Hanken Grotesk', fontSize: '0.95rem', fontWeight: 600, color: 'var(--text-primary)' }}>CLIP Scores</p>
+                </div>
+                {[
+                  { label: 'OpenAI CLIP', value: clipResult!.openai_clip.pneumonia },
+                  { label: 'BiomedCLIP', value: clipResult!.biomedclip.pneumonia },
+                ].map((row) => (
+                  <div key={row.label} style={{ marginBottom: '0.9rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                      <p className="text-subheading" style={{ fontSize: '0.75rem' }}>{row.label}</p>
+                      <p style={{ fontFamily: 'Hanken Grotesk', fontSize: '0.9rem', fontWeight: 700, color: 'var(--text-primary)' }}>{(row.value * 100).toFixed(1)}% pneumonia</p>
+                    </div>
+                    <div style={{ height: '5px', background: 'var(--border)', borderRadius: '2px', overflow: 'hidden' }}>
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${row.value * 100}%` }}
+                        transition={{ duration: 0.6 }}
+                        style={{ height: '100%', background: '#9B6DCC' }}
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+              </div>
+            </motion.div>
+          ) : (
+            <motion.div key="placeholders" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+              <div
+                className="result-cards-grid"
+                style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem' }}
+              >
+              {[
+                { id: 'classifier', label: 'Classifier', icon: ChartBar, detail: 'Normal / Pneumonia probability' },
+                { id: 'unet', label: 'U-Net Heatmap', icon: Selection, detail: 'Opacity localization overlay' },
+                { id: 'vae', label: 'VAE Reconstruction', icon: ArrowsClockwise, detail: 'Recon error anomaly score' },
+                { id: 'clip', label: 'CLIP Scores', icon: Sparkle, detail: 'Zero-shot vs BiomedCLIP' },
+              ].map((card, i) => {
+                const Icon = card.icon
+                return (
+                  <motion.div key={card.id} {...fadeUp(i * 0.06)}>
+                    <div style={{
+                      padding: '1.75rem 1.25rem',
+                      border: '1px dashed var(--border-accent)',
+                      borderRadius: '8px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      textAlign: 'center',
+                      gap: '0.75rem',
+                      minHeight: '180px',
+                      justifyContent: 'center',
+                    }}>
+                      <Icon size={22} style={{ color: 'var(--text-muted)', opacity: 0.5 }} />
+                      <p style={{ fontFamily: 'Hanken Grotesk', fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-primary)' }}>{card.label}</p>
+                      <p className="text-subheading" style={{ fontSize: '0.62rem' }}>{card.detail}</p>
+                      <p className="text-subheading" style={{ fontSize: '0.58rem', color: 'var(--text-muted)', opacity: 0.7 }}>renders after upload</p>
+                    </div>
+                  </motion.div>
+                )
+              })}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </section>
 
       <div className="divider" />
