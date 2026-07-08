@@ -20,22 +20,38 @@ import base64
 import torch
 import numpy as np
 from PIL import Image
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 import torchvision.transforms as transforms
 import clip
 from open_clip import create_model_from_pretrained, get_tokenizer
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from src.models.classifier import XrayClassifier
 from src.models.vae import VAE
 from src.models.attention_unet import AttentionUNet
 from src.models.gan import Generator
 from src.models.diffusion import UNet as DiffusionUNet, Diffusion
-from configs.config import (CNN_BACKBONE, NUM_CLASSES, DROPOUT_RATE, VAE_LATENT_DIM, UNET_FEATURES, IMAGE_SIZE, CHECKPOINTS_DIR, GAN_LATENT_DIM, DIFFUSION_BASE_CH, DIFFUSION_TIMESTEPS, DIFFUSION_IMG_SIZE, DIFFUSION_DDIM_STEPS,)
+from configs.config import (
+    CNN_BACKBONE, NUM_CLASSES, DROPOUT_RATE,
+    VAE_LATENT_DIM, UNET_FEATURES, IMAGE_SIZE, CHECKPOINTS_DIR,
+    GAN_LATENT_DIM, DIFFUSION_BASE_CH, DIFFUSION_TIMESTEPS,
+    DIFFUSION_IMG_SIZE, DIFFUSION_DDIM_STEPS,
+)
 
-DEVICE = "cpu" #modal free tier is cpu only
+DEVICE = "cpu" # modal free tier is cpu only
 
 app = FastAPI(title="cxr-vision inference api")
+
+#rate limiting keyed by client ip. per-container in memory, not shared across
+#containers, but sufficient for this project's traffic level.
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -136,7 +152,8 @@ async def health():
 
 
 @app.post("/predict")
-async def predict(file: UploadFile = File(...)):
+@limiter.limit("10/minute")
+async def predict(request: Request, file: UploadFile = File(...)):
     raw = await file.read()
     pil_img = read_upload_as_rgb(raw)
 
@@ -173,7 +190,8 @@ async def predict(file: UploadFile = File(...)):
 
 
 @app.post("/clip")
-async def clip_predict(file: UploadFile = File(...)):
+@limiter.limit("10/minute")
+async def clip_predict(request: Request, file: UploadFile = File(...)):
     raw = await file.read()
     pil_img = read_upload_as_rgb(raw)
 
@@ -203,7 +221,8 @@ async def clip_predict(file: UploadFile = File(...)):
 
 
 @app.post("/generate/gan")
-async def generate_gan():
+@limiter.limit("15/minute")
+async def generate_gan(request: Request):
     with torch.no_grad():
         z = torch.randn(1, GAN_LATENT_DIM).to(DEVICE)
         fake = gan_generator(z).squeeze().cpu().numpy()
@@ -213,7 +232,8 @@ async def generate_gan():
 
 
 @app.post("/generate/diffusion")
-async def generate_diffusion():
+@limiter.limit("5/minute")
+async def generate_diffusion(request: Request):
     with torch.no_grad():
         sample = diffusion_process.ddim_sample(diffusion_model, 1, ddim_steps=DIFFUSION_DDIM_STEPS)
         sample = sample.squeeze().cpu().numpy()
