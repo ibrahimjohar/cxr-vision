@@ -1,3 +1,5 @@
+<img width="1560" height="886" alt="image" src="https://github.com/user-attachments/assets/173845ce-5ead-4f3a-aff2-aeb70a001522" />
+
 # cxr-vision
 
 End-to-end chest X-ray pathology detection pipeline — classical OpenCV preprocessing through CNN classification, VAE anomaly detection, generative modeling (GAN + diffusion), attention-based segmentation, and CLIP zero-shot evaluation, deployed as a live interactive dashboard.
@@ -183,6 +185,7 @@ Vercel (Next.js dashboard) ──► calls the live endpoint directly from the b
 
 ## Roadmap
 
-- Dockerfile for the API, for local reproducibility outside the Modal-specific deployment path
 - Tighten CORS from `allow_origins=["*"]` to the Vercel domain specifically, now that it's known
 - Upgrade `framer-motion` past its current React 18 peer-dependency declaration, to remove the `legacy-peer-deps` workaround in `dashboard/.npmrc`
+
+**Note on Docker:** no Dockerfile is included. Both deployment targets build their own images natively — Modal from a `modal.Image` definition in `modal_app/serve.py`, Vercel from the Next.js source directly — so a separate container was never actually in the critical path. Serverless platforms handling their own builds was part of the reasoning for choosing them over a persistent-VM option like EC2.
